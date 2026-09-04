@@ -22,6 +22,8 @@ export interface LiveSessionOptions {
   onAudio: (pcm24: Buffer) => void;
   onTranscript: (who: "buyer" | "agent", text: string) => void;
   onToolCall: (name: string, args: Record<string, unknown>, outcome: string) => void;
+  /** The model's turn was cut short; drop any audio still queued for playback. */
+  onInterrupted?: () => void;
   onClose: (reason: string) => void;
 }
 
@@ -46,12 +48,43 @@ export class LiveSession {
         ws.send(JSON.stringify({
           setup: {
             model: `models/${model}`,
-            generationConfig: { responseModalities: ["AUDIO"] },
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              // A named prebuilt voice, not the default. Aoede and Leda are the
+              // warmer female voices; the default reads like an announcement.
+              // No languageCode here. Native-audio models choose the language
+              // themselves and reject the field: setting it closed the socket
+              // with 1007 "audio content type not supported for this model
+              // configuration" the moment real audio arrived. Language is
+              // steered from the system instruction instead.
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: process.env.GEMINI_VOICE ?? "Aoede" },
+                },
+              },
+              temperature: 0.6,
+            },
             systemInstruction: { parts: [{ text: systemInstruction(this.o.ctx) }] },
             tools: [{ functionDeclarations: VOICE_TOOLS }],
             // Both sides transcribed so the audit trail has words, not just audio.
             inputAudioTranscription: {},
             outputAudioTranscription: {},
+            // Let the buyer interrupt. On a collections call people talk over
+            // you, and a model that finishes its sentence regardless is the
+            // single clearest tell that they are talking to a machine.
+            // Tuned for a phone line, not a headset. HIGH start-sensitivity
+            // treated line noise as the buyer speaking, so the model kept
+            // abandoning and restarting its turn — heard as repeated
+            // sentences. LOW start with a normal end and a shorter silence
+            // window is both calmer and quicker to answer.
+            realtimeInputConfig: {
+              automaticActivityDetection: {
+                startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
+                endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+                prefixPaddingMs: 200,
+                silenceDurationMs: 350,
+              },
+            },
           },
         }));
       });
@@ -77,6 +110,12 @@ export class LiveSession {
 
   async #handle(msg: Record<string, any>): Promise<void> {
     const sc = msg.serverContent;
+    if (sc?.interrupted) {
+      // The buyer talked over her. Everything already queued belongs to a turn
+      // that is now abandoned; playing it out is what makes an agent sound like
+      // it is repeating itself.
+      this.o.onInterrupted?.();
+    }
     if (sc) {
       for (const part of sc.modelTurn?.parts ?? []) {
         if (part.inlineData?.data) this.o.onAudio(Buffer.from(part.inlineData.data, "base64"));
@@ -96,7 +135,12 @@ export class LiveSession {
         }
         this.o.onToolCall(call.name, call.args ?? {}, outcome.detail);
         responses.push({ id: call.id, name: call.name, response: { result: outcome.detail } });
-        if (outcome.endCall) setTimeout(() => this.close("tool ended the call"), 4_000);
+        if (outcome.endCall) {
+          // Long enough for the one-line confirmation to finish playing, short
+          // enough that the buyer is not left holding a dead line. Without
+          // this the agent said goodbye and the call simply stayed open.
+          setTimeout(() => this.close("business concluded"), 6_000);
+        }
       }
       this.#ws?.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
     }
@@ -134,9 +178,10 @@ export class LiveSession {
   }
 
   #sendAudio(pcm16: Buffer): void {
+    // `realtimeInput.audio`, not the older `mediaChunks` array.
     this.#ws?.send(JSON.stringify({
       realtimeInput: {
-        mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: pcm16.toString("base64") }],
+        audio: { mimeType: "audio/pcm;rate=16000", data: pcm16.toString("base64") },
       },
     }));
   }

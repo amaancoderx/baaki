@@ -1,0 +1,121 @@
+{
+  "invoiceId": "inv_1",
+  "callSid": "browser_mtnkq451",
+  "lines": [
+    {
+      "who": "agent",
+      "text": "Namaste, main",
+      "ts": 1788563833925
+    },
+    {
+      "who": "agent",
+      "text": " Sharma",
+      "ts": 1788563834327
+    },
+    {
+      "who": "agent",
+      "text": " Traders",
+      "ts": 1788563834422
+    },
+    {
+      "who": "agent",
+      "text": " ke",
+      "ts": 1788563834553
+    },
+    {
+      "who": "agent",
+      "text": " liye",
+      "ts": 1788563834616
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788563834679
+    },
+    {
+      "who": "agent",
+      "text": " payment",
+      "ts": 1788563834744
+    },
+    {
+      "who": "agent",
+      "text": " reminder",
+      "ts": 1788563834848
+    },
+    {
+      "who": "agent",
+      "text": " ke silsile",
+      "ts": 1788563834989
+    },
+    {
+      "who": "agent",
+      "text": " mein",
+      "ts": 1788563835104
+    },
+    {
+      "who": "agent",
+      "text": " call",
+      "ts": 1788563835131
+    },
+    {
+      "who": "agent",
+      "text": " kar",
+      "ts": 1788563835187
+    },
+    {
+      "who": "agent",
+      "text": " rahi",
+      "ts": 1788563835242
+    },
+    {
+      "who": "agent",
+      "text": " hoon.",
+      "ts": 1788563835306
+    },
+    {
+      "who": "agent",
+      "text": " Ye",
+      "ts": 1788563835349
+    },
+    {
+      "who": "agent",
+      "text": " call",
+      "ts": 1788563835590
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788563835761
+    },
+    {
+      "who": "agent",
+      "text": " ho rahi",
+      "ts": 1788563835881
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788563835989
+    },
+    {
+      "who": "agent",
+      "text": " Do minute",
+      "ts": 1788563836064
+    },
+    {
+      "who": "agent",
+      "text": " baat",
+      "ts": 1788563836472
+    },
+    {
+      "who": "agent",
+      "text": " kar sakte",
+      "ts": 1788563836538
+    },
+    {
+      "who": "agent",
+      "text": " hain?",
+      "ts": 1788563836795
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { LiveSession } from "./live.js";
 import { handleTurn, openingLine, sayAndListen, sayAndHangUp } from "./gather.js";
 import { geminiToTwilio, twilioToGemini } from "./audio.js";
+import { AudioPacer, InboundBatcher } from "./pacer.js";
 import type { VoiceContext } from "./tools.js";
 
 const PORT = Number(process.env.VOICE_PORT ?? 3002);
@@ -97,10 +98,16 @@ const server = createServer(async (req, res) => {
   if (url.pathname === "/twiml") {
     const invoiceId = url.searchParams.get("invoice") ?? "";
     const base = (process.env.PUBLIC_VOICE_URL ?? `ws://localhost:${PORT}`).replace(/^http/, "ws");
+    // The invoice travels as a <Parameter>, not a query string. Twilio opens
+    // the media socket against the path alone — ngrok logged
+    // `GET /media -> 101` with the query gone — so anything encoded in the URL
+    // is lost and the socket arrives with no idea which case it is for.
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${base}/media?invoice=${encodeURIComponent(invoiceId)}" />
+    <Stream url="${base}/media">
+      <Parameter name="invoice" value="${invoiceId}" />
+    </Stream>
   </Connect>
 </Response>`;
     res.writeHead(200, { "Content-Type": "text/xml" });
@@ -125,111 +132,139 @@ server.on("upgrade", (req, socket, head) => {
 wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const isTwilio = url.pathname === "/media";
-  const invoiceId = url.searchParams.get("invoice") ?? "";
-
-  let ctx: VoiceContext;
-  try {
-    ctx = contextFor(invoiceId);
-  } catch (e) {
-    ws.send(JSON.stringify({ type: "error", message: `unknown invoice ${invoiceId}` }));
-    ws.close();
-    return;
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) { ws.send(JSON.stringify({ type: "error", message: "GEMINI_API_KEY not set" })); ws.close(); return; }
 
   const transcript: { who: string; text: string; ts: number }[] = [];
   let streamSid: string | null = null;
   let callSid = isTwilio ? "pending" : `browser_${Date.now().toString(36)}`;
+  let session: LiveSession | null = null;
+  let invoiceId = url.searchParams.get("invoice") ?? "";
 
-  log(`call open (${isTwilio ? "twilio" : "browser"}) invoice=${invoiceId} buyer=${ctx.buyerName} outstanding=${formatINR(ctx.outstanding)}`);
+  // Twilio wants a steady 20 ms frame; Gemini emits whole phrases at once.
+  const pacer = isTwilio
+    ? new AudioPacer((payload) => {
+        if (ws.readyState === ws.OPEN && streamSid) {
+          ws.send(JSON.stringify({ event: "media", streamSid, media: { payload } }));
+        }
+      })
+    : null;
+  const batcher = new InboundBatcher((pcm) => session?.sendAudio(pcm), 60);
 
-  const session = new LiveSession({
-    apiKey,
-    ctx,
-    store,
-    policy: loadPolicy(),
-    callSid,
-    onAudio: (pcm24) => {
-      if (ws.readyState !== ws.OPEN) return;
-      if (isTwilio && streamSid) {
-        ws.send(JSON.stringify({ event: "media", streamSid, media: { payload: geminiToTwilio(pcm24) } }));
-      } else if (!isTwilio) {
-        ws.send(pcm24, { binary: true });
-      }
-    },
-    onTranscript: (who, text) => {
-      transcript.push({ who, text, ts: Date.now() });
-      if (ws.readyState === ws.OPEN && !isTwilio) ws.send(JSON.stringify({ type: "transcript", who, text }));
-    },
-    onToolCall: (name, args, outcome) => {
-      log(`  tool ${name}`, JSON.stringify(args), "->", outcome);
-      transcript.push({ who: "tool", text: `${name}: ${outcome}`, ts: Date.now() });
-      if (ws.readyState === ws.OPEN && !isTwilio) ws.send(JSON.stringify({ type: "tool", name, args, outcome }));
-    },
-    onClose: (reason) => {
-      log(`  live session closed: ${reason}`);
-      if (transcript.length) saveTranscript(invoiceId, callSid, transcript);
-      if (ws.readyState === ws.OPEN) ws.close();
-    },
-  });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) { ws.send(JSON.stringify({ type: "error", message: "GEMINI_API_KEY not set" })); ws.close(); return; }
 
-  // Attached before the Live session is opened. Twilio sends `connected` and
-  // `start` the moment the socket is up, and opening a Gemini session takes
-  // about a second; a listener attached after that await misses both, so
-  // streamSid is never learned and every byte of the agent's reply is dropped
-  // into a call that sounds like silence. LiveSession queues audio that
-  // arrives before it is ready, so nothing is lost by listening early.
+  /** Built once the invoice is known: from the query for a browser, from the start event for Twilio. */
+  async function begin(id: string): Promise<void> {
+    if (session) return;
+    let ctx: VoiceContext;
+    try {
+      ctx = contextFor(id);
+    } catch {
+      log(`  unknown invoice "${id}" — closing`);
+      if (!isTwilio) ws.send(JSON.stringify({ type: "error", message: `unknown invoice ${id}` }));
+      ws.close();
+      return;
+    }
+
+    log(`call open (${isTwilio ? "twilio" : "browser"}) invoice=${id} buyer=${ctx.buyerName} outstanding=${formatINR(ctx.outstanding)}`);
+
+    session = new LiveSession({
+      apiKey: apiKey!,
+      ctx,
+      store,
+      policy: loadPolicy(),
+      callSid,
+      onAudio: (pcm24) => {
+        if (ws.readyState !== ws.OPEN) return;
+        if (isTwilio) {
+          // Transcode to mu-law and hand to the pacer, which releases it at
+          // real-time rate. Sending a whole phrase as one media message got it
+          // truncated, which is why she stopped mid-sentence.
+          pacer?.push(Buffer.from(geminiToTwilio(pcm24), "base64"));
+        } else {
+          ws.send(pcm24, { binary: true });
+        }
+      },
+      onInterrupted: () => {
+        // Abandoned turn: drop what is queued rather than play it over her.
+        pacer?.clear();
+        if (!isTwilio && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "interrupted" }));
+      },
+      onTranscript: (who, text) => {
+        transcript.push({ who, text, ts: Date.now() });
+        if (ws.readyState === ws.OPEN && !isTwilio) ws.send(JSON.stringify({ type: "transcript", who, text }));
+      },
+      onToolCall: (name, args, outcome) => {
+        log(`  tool ${name}`, JSON.stringify(args), "->", outcome);
+        transcript.push({ who: "tool", text: `${name}: ${outcome}`, ts: Date.now() });
+        if (ws.readyState === ws.OPEN && !isTwilio) ws.send(JSON.stringify({ type: "tool", name, args, outcome }));
+      },
+      onClose: (reason) => {
+        log(`  live session closed: ${reason}`);
+        if (transcript.length) saveTranscript(id, callSid, transcript);
+        batcher.stop();
+        // Let the pacer drain what is already queued before dropping the
+        // socket, so the closing sentence is not cut off by the hangup.
+        const drain = pacer ? pacer.queuedMs + 400 : 0;
+        setTimeout(() => { pacer?.stop(); if (ws.readyState === ws.OPEN) ws.close(); }, drain);
+      },
+    });
+
+    try {
+      await session.open();
+      if (!isTwilio) ws.send(JSON.stringify({ type: "ready", buyer: ctx.buyerName, outstanding: ctx.outstanding }));
+      log("  live session ready");
+      session.greet();
+    } catch (e) {
+      log("  live open failed", e instanceof Error ? e.message : e);
+      if (!isTwilio) ws.send(JSON.stringify({ type: "error", message: String(e) }));
+      ws.close();
+    }
+  }
+
   ws.on("message", (data, isBinary) => {
     if (isTwilio) {
-      const msg = JSON.parse(data.toString()) as Record<string, any>;
+      let msg: Record<string, any>;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
       switch (msg.event) {
-        case "start":
+        case "start": {
           streamSid = msg.start?.streamSid ?? null;
           callSid = msg.start?.callSid ?? callSid;
-          log(`  twilio stream start sid=${streamSid}`);
+          const param = msg.start?.customParameters?.invoice;
+          if (param) invoiceId = String(param);
+          log(`  twilio stream start sid=${streamSid} invoice=${invoiceId || "(none)"}`);
+          void begin(invoiceId);
           break;
+        }
         case "media":
-          session.sendAudio(twilioToGemini(msg.media.payload));
+          batcher.push(twilioToGemini(msg.media.payload));
           break;
         case "stop":
           log("  twilio stream stop");
-          session.close("twilio hung up");
+          batcher.stop(); pacer?.stop();
+          session?.close("twilio hung up");
           break;
       }
       return;
     }
-    // Browser sends raw 16 kHz PCM frames, or a typed turn as a fallback.
-    if (isBinary) { session.sendAudio(data as Buffer); return; }
+    if (isBinary) { session?.sendAudio(data as Buffer); return; }
     try {
       const m = JSON.parse(data.toString()) as { type?: string; text?: string };
       if (m.type === "text" && m.text) {
         transcript.push({ who: "buyer", text: m.text, ts: Date.now() });
-        session.sendText(m.text);
+        session?.sendText(m.text);
       }
     } catch { /* not JSON: ignore */ }
   });
 
-
-  try {
-    await session.open();
-    if (!isTwilio) ws.send(JSON.stringify({ type: "ready", buyer: ctx.buyerName, outstanding: ctx.outstanding }));
-    log("  live session ready");
-    // Outbound call: the agent speaks first, starting with the consent line.
-    session.greet();
-  } catch (e) {
-    log("  live open failed", e instanceof Error ? e.message : e);
-    ws.send(JSON.stringify({ type: "error", message: String(e) }));
-    ws.close();
-    return;
-  }
-
   ws.on("close", () => {
     log(`call closed invoice=${invoiceId}`);
-    session.close("socket closed");
+    batcher.stop(); pacer?.stop();
+    session?.close("socket closed");
     if (transcript.length) saveTranscript(invoiceId, callSid, transcript);
   });
+
+  // A browser knows its invoice from the query and can start immediately.
+  if (!isTwilio && invoiceId) await begin(invoiceId);
 });
 
 server.listen(PORT, () => {

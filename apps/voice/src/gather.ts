@@ -17,27 +17,62 @@ import { runVoiceTool, VOICE_TOOLS, type VoiceContext } from "./tools.js";
  */
 
 /**
- * Amounts for a text-to-speech engine, not a screen. "₹1,80,000" is read out
- * as a symbol and a string of digits; Indian buyers hear and say lakhs.
+ * Hindi numerals, spelled out. "1 lakh 80 hazaar rupees" is not a sentence
+ * anyone says: the digits get read in English, the units in Hindi, and the
+ * result sounds like a machine reading a spreadsheet. A buyer hears
+ * "ek lakh assi hazaar rupaye".
  */
+const HI_ONES = [
+  "shunya", "ek", "do", "teen", "chaar", "paanch", "chhe", "saat", "aath", "nau",
+  "das", "gyarah", "barah", "terah", "chaudah", "pandrah", "solah", "satrah", "atharah", "unnees",
+  "bees", "ikkees", "baees", "teiys", "chaubees", "pachchees", "chhabbees", "sattaees", "atthaees", "untees",
+  "tees", "iktees", "battees", "taintees", "chauntees", "paintees", "chhattees", "saintees", "adtees", "untaalees",
+  "chaalees", "iktaalees", "bayaalees", "taintaalees", "chavaalees", "paintaalees", "chhiyaalees", "saintaalees", "adtaalees", "unchaas",
+  "pachaas", "ikyaavan", "baavan", "tirpan", "chauvan", "pachpan", "chhappan", "sattaavan", "atthaavan", "unsath",
+  "saath", "iksath", "baasath", "tirsath", "chausath", "paisath", "chhiyaasath", "sadsath", "adsath", "unhattar",
+  "sattar", "ikhattar", "bahattar", "tihattar", "chauhattar", "pachhattar", "chhihattar", "sathattar", "athhattar", "unaasi",
+  "assi", "ikyaasi", "bayaasi", "tirasi", "chauraasi", "pachaasi", "chhiyaasi", "sattaasi", "atthaasi", "nawaasi",
+  "nabbe", "ikyaanve", "baanve", "tiraanve", "chauraanve", "pachaanve", "chhiyaanve", "sattaanve", "atthaanve", "ninyaanve",
+];
+
+function hindiNumber(n: number): string {
+  if (n < 100) return HI_ONES[n] ?? String(n);
+  if (n < 1000) {
+    const h = Math.floor(n / 100), r = n % 100;
+    return `${HI_ONES[h]} sau${r ? " " + hindiNumber(r) : ""}`;
+  }
+  return String(n);
+}
+
+/** Spoken amount in Hindi: "ek lakh assi hazaar rupaye". */
 export function spokenAmount(paise: number): string {
   const r = Math.round(paise / 100);
   const lakh = Math.floor(r / 100000);
   const rest = r % 100000;
   const thousand = Math.floor(rest / 1000);
   const units = rest % 1000;
+
   const parts: string[] = [];
-  if (lakh) parts.push(`${lakh} lakh`);
-  if (thousand) parts.push(`${thousand} hazaar`);
-  if (units) parts.push(`${units}`);
-  return parts.length ? `${parts.join(" ")} rupees` : "0 rupees";
+  if (lakh) parts.push(`${hindiNumber(lakh)} lakh`);
+  if (thousand) parts.push(`${hindiNumber(thousand)} hazaar`);
+  if (units) parts.push(hindiNumber(units));
+  return parts.length ? `${parts.join(" ")} rupaye` : "shunya rupaye";
 }
+
+/** Days in Hindi, so "22 din" is not read as "twenty-two din". */
+export const spokenDays = (n: number): string => `${hindiNumber(n)} din`;
 
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Aditi is Polly's Indian English voice and handles Hinglish acceptably. */
-const VOICE_ATTR = 'voice="Polly.Aditi" language="en-IN"';
+/**
+ * Kajal is Polly's neural bilingual Hindi/Indian-English voice, which is what
+ * makes a Hinglish sentence sound like one sentence. Aditi, the standard
+ * Indian English voice, read Hindi words phonetically as English and sounded
+ * like a machine. Override with VOICE_TTS if a different voice is preferred.
+ */
+const TTS_VOICE = process.env.VOICE_TTS ?? "Polly.Kajal-Neural";
+const VOICE_ATTR = `voice="${TTS_VOICE}" language="hi-IN"`;
 
 /**
  * Words the recogniser should expect. Twilio's default English model turned
@@ -77,7 +112,9 @@ export function sayAndHangUp(text: string): string {
 const SYSTEM = (ctx: VoiceContext): string =>
 `You are on a phone call with a buyer about one unpaid invoice, on behalf of an Indian merchant. You are not a debt collector and you do not negotiate.
 
-Invoice: ${spokenAmount(ctx.outstanding)} outstanding, was due ${ctx.dueOn}, now ${ctx.daysOverdue} days overdue. Today is ${ctx.today}.
+Invoice: ${spokenAmount(ctx.outstanding)} outstanding, due ${ctx.dueOn}, now ${ctx.daysOverdue} days overdue. Today is ${ctx.today}.
+
+Write every number as Hindi words, never digits: "ek lakh assi hazaar rupaye", not "1,80,000". Your reply is read aloud by a text-to-speech voice, and digits are read in English.
 
 Rules:
 - Reply in one or two short sentences. This is spoken aloud, so no lists and no formatting.
@@ -163,7 +200,7 @@ export async function handleTurn(
 }
 
 export const openingLine = (ctx: VoiceContext): string =>
-  `Namaste. Main ${ctx.buyerName} ke liye ek payment reminder ke silsile mein call kar raha hoon. ` +
+  `Namaste. Main ${ctx.buyerName} ke liye ek payment reminder ke silsile mein call kar rahi hoon. ` +
   `Ye call record ho rahi hai. ` +
-  `Invoice ${spokenAmount(ctx.outstanding)} ka hai, jo ${ctx.daysOverdue} din pehle due ho chuka tha. ` +
+  `Invoice ${spokenAmount(ctx.outstanding)} ka hai, jo ${spokenDays(ctx.daysOverdue)} pehle due ho chuka tha. ` +
   `Aap kab tak payment kar payenge?`;

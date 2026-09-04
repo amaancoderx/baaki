@@ -1,0 +1,106 @@
+{
+  "invoiceId": "inv_1",
+  "callSid": "browser_mtnkp93a",
+  "lines": [
+    {
+      "who": "agent",
+      "text": "Namaste, main",
+      "ts": 1788563791903
+    },
+    {
+      "who": "agent",
+      "text": " Sharma",
+      "ts": 1788563792236
+    },
+    {
+      "who": "agent",
+      "text": " Traders",
+      "ts": 1788563792319
+    },
+    {
+      "who": "agent",
+      "text": " ke liye",
+      "ts": 1788563792401
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788563792513
+    },
+    {
+      "who": "agent",
+      "text": " payment",
+      "ts": 1788563792574
+    },
+    {
+      "who": "agent",
+      "text": " reminder",
+      "ts": 1788563792675
+    },
+    {
+      "who": "agent",
+      "text": " ke silsile",
+      "ts": 1788563792812
+    },
+    {
+      "who": "agent",
+      "text": " mein call",
+      "ts": 1788563792989
+    },
+    {
+      "who": "agent",
+      "text": " kar",
+      "ts": 1788563793073
+    },
+    {
+      "who": "agent",
+      "text": " rahi",
+      "ts": 1788563793125
+    },
+    {
+      "who": "agent",
+      "text": " hoon.",
+      "ts": 1788563793188
+    },
+    {
+      "who": "agent",
+      "text": " Ye call",
+      "ts": 1788563793242
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788563793445
+    },
+    {
+      "who": "agent",
+      "text": " ho rahi",
+      "ts": 1788563793578
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788563793667
+    },
+    {
+      "who": "agent",
+      "text": " Do minute",
+      "ts": 1788563793746
+    },
+    {
+      "who": "agent",
+      "text": " baat",
+      "ts": 1788563793951
+    },
+    {
+      "who": "agent",
+      "text": " kar sakte",
+      "ts": 1788563794006
+    },
+    {
+      "who": "agent",
+      "text": " hain?",
+      "ts": 1788563794135
+    }
+  ]
+}

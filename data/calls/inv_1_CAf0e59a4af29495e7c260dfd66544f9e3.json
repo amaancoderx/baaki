@@ -1,0 +1,531 @@
+{
+  "invoiceId": "inv_1",
+  "callSid": "CAf0e59a4af29495e7c260dfd66544f9e3",
+  "lines": [
+    {
+      "who": "agent",
+      "text": "नमस्ते, मैं",
+      "ts": 1788564422686
+    },
+    {
+      "who": "agent",
+      "text": " Sharma",
+      "ts": 1788564422944
+    },
+    {
+      "who": "agent",
+      "text": " Traders",
+      "ts": 1788564423079
+    },
+    {
+      "who": "agent",
+      "text": " ke liye",
+      "ts": 1788564423205
+    },
+    {
+      "who": "agent",
+      "text": " ek payment",
+      "ts": 1788564423306
+    },
+    {
+      "who": "agent",
+      "text": " reminder",
+      "ts": 1788564423454
+    },
+    {
+      "who": "agent",
+      "text": " ke silsile",
+      "ts": 1788564423573
+    },
+    {
+      "who": "agent",
+      "text": " mein",
+      "ts": 1788564423730
+    },
+    {
+      "who": "agent",
+      "text": " call",
+      "ts": 1788564423797
+    },
+    {
+      "who": "agent",
+      "text": " kar",
+      "ts": 1788564423872
+    },
+    {
+      "who": "agent",
+      "text": " rahi",
+      "ts": 1788564423925
+    },
+    {
+      "who": "agent",
+      "text": " hoon.",
+      "ts": 1788564424007
+    },
+    {
+      "who": "agent",
+      "text": " Ye call",
+      "ts": 1788564424012
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788564424187
+    },
+    {
+      "who": "agent",
+      "text": " ho rahi",
+      "ts": 1788564424296
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788564424401
+    },
+    {
+      "who": "agent",
+      "text": " Do minute",
+      "ts": 1788564424437
+    },
+    {
+      "who": "agent",
+      "text": " baat",
+      "ts": 1788564424637
+    },
+    {
+      "who": "agent",
+      "text": " kar sakte",
+      "ts": 1788564424690
+    },
+    {
+      "who": "agent",
+      "text": " hain?",
+      "ts": 1788564424820
+    },
+    {
+      "who": "buyer",
+      "text": " ఆ",
+      "ts": 1788564431621
+    },
+    {
+      "who": "agent",
+      "text": "Ye call",
+      "ts": 1788564433211
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788564433404
+    },
+    {
+      "who": "agent",
+      "text": " ho rahi",
+      "ts": 1788564433522
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788564433602
+    },
+    {
+      "who": "agent",
+      "text": " Do minute",
+      "ts": 1788564433688
+    },
+    {
+      "who": "agent",
+      "text": " baat",
+      "ts": 1788564433868
+    },
+    {
+      "who": "agent",
+      "text": " kar sakte",
+      "ts": 1788564433922
+    },
+    {
+      "who": "agent",
+      "text": " hain?",
+      "ts": 1788564434053
+    },
+    {
+      "who": "buyer",
+      "text": " जी बोलिए",
+      "ts": 1788564438298
+    },
+    {
+      "who": "agent",
+      "text": "Dhanyavaad. Sharma",
+      "ts": 1788564439911
+    },
+    {
+      "who": "agent",
+      "text": " Traders",
+      "ts": 1788564440200
+    },
+    {
+      "who": "agent",
+      "text": " ki taraf",
+      "ts": 1788564440378
+    },
+    {
+      "who": "agent",
+      "text": " se,",
+      "ts": 1788564440579
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788564440664
+    },
+    {
+      "who": "agent",
+      "text": " invoice",
+      "ts": 1788564440740
+    },
+    {
+      "who": "agent",
+      "text": " pending",
+      "ts": 1788564440824
+    },
+    {
+      "who": "agent",
+      "text": " hai,",
+      "ts": 1788564440954
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788564441007
+    },
+    {
+      "who": "agent",
+      "text": " lakh",
+      "ts": 1788564441199
+    },
+    {
+      "who": "agent",
+      "text": " assi",
+      "ts": 1788564441257
+    },
+    {
+      "who": "agent",
+      "text": " hazaar",
+      "ts": 1788564441348
+    },
+    {
+      "who": "agent",
+      "text": " rupaye",
+      "ts": 1788564441428
+    },
+    {
+      "who": "agent",
+      "text": " ka,",
+      "ts": 1788564441503
+    },
+    {
+      "who": "agent",
+      "text": " jo",
+      "ts": 1788564441579
+    },
+    {
+      "who": "agent",
+      "text": " baais",
+      "ts": 1788564441763
+    },
+    {
+      "who": "agent",
+      "text": " din",
+      "ts": 1788564441875
+    },
+    {
+      "who": "agent",
+      "text": " pehle",
+      "ts": 1788564441947
+    },
+    {
+      "who": "agent",
+      "text": " due",
+      "ts": 1788564442022
+    },
+    {
+      "who": "agent",
+      "text": " ho chuka",
+      "ts": 1788564442086
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788564442203
+    },
+    {
+      "who": "agent",
+      "text": " Kya",
+      "ts": 1788564442236
+    },
+    {
+      "who": "agent",
+      "text": " aap bata",
+      "ts": 1788564442280
+    },
+    {
+      "who": "agent",
+      "text": " sakte",
+      "ts": 1788564442496
+    },
+    {
+      "who": "agent",
+      "text": " hain ki",
+      "ts": 1788564442606
+    },
+    {
+      "who": "agent",
+      "text": " iska",
+      "ts": 1788564442658
+    },
+    {
+      "who": "agent",
+      "text": " bhugtaan",
+      "ts": 1788564442748
+    },
+    {
+      "who": "agent",
+      "text": " kab tak",
+      "ts": 1788564442888
+    },
+    {
+      "who": "agent",
+      "text": " ho payega?",
+      "ts": 1788564442980
+    },
+    {
+      "who": "buyer",
+      "text": " जी बोलिए",
+      "ts": 1788564444174
+    },
+    {
+      "who": "agent",
+      "text": "Sharma Traders",
+      "ts": 1788564445471
+    },
+    {
+      "who": "agent",
+      "text": " ki taraf",
+      "ts": 1788564445761
+    },
+    {
+      "who": "agent",
+      "text": " se",
+      "ts": 1788564445884
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788564445936
+    },
+    {
+      "who": "agent",
+      "text": " invoice",
+      "ts": 1788564446024
+    },
+    {
+      "who": "agent",
+      "text": " pending",
+      "ts": 1788564446131
+    },
+    {
+      "who": "agent",
+      "text": " hai,",
+      "ts": 1788564446206
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788564446281
+    },
+    {
+      "who": "agent",
+      "text": " lakh",
+      "ts": 1788564446437
+    },
+    {
+      "who": "agent",
+      "text": " assi",
+      "ts": 1788564446539
+    },
+    {
+      "who": "agent",
+      "text": " hazaar",
+      "ts": 1788564446636
+    },
+    {
+      "who": "agent",
+      "text": " rupaye",
+      "ts": 1788564446700
+    },
+    {
+      "who": "agent",
+      "text": " ka.",
+      "ts": 1788564446773
+    },
+    {
+      "who": "agent",
+      "text": " Jo",
+      "ts": 1788564446937
+    },
+    {
+      "who": "agent",
+      "text": " baais",
+      "ts": 1788564447020
+    },
+    {
+      "who": "agent",
+      "text": " din",
+      "ts": 1788564447117
+    },
+    {
+      "who": "agent",
+      "text": " pehle",
+      "ts": 1788564447171
+    },
+    {
+      "who": "agent",
+      "text": " due",
+      "ts": 1788564447245
+    },
+    {
+      "who": "agent",
+      "text": " ho gaya",
+      "ts": 1788564447309
+    },
+    {
+      "who": "agent",
+      "text": " tha.",
+      "ts": 1788564447394
+    },
+    {
+      "who": "agent",
+      "text": " Kya",
+      "ts": 1788564447492
+    },
+    {
+      "who": "agent",
+      "text": " aap bata",
+      "ts": 1788564447641
+    },
+    {
+      "who": "agent",
+      "text": " sakte",
+      "ts": 1788564447728
+    },
+    {
+      "who": "agent",
+      "text": " hain",
+      "ts": 1788564447850
+    },
+    {
+      "who": "agent",
+      "text": " ki iska",
+      "ts": 1788564447854
+    },
+    {
+      "who": "agent",
+      "text": " भुगतान",
+      "ts": 1788564447962
+    },
+    {
+      "who": "agent",
+      "text": " kab",
+      "ts": 1788564448070
+    },
+    {
+      "who": "agent",
+      "text": " tak",
+      "ts": 1788564448135
+    },
+    {
+      "who": "agent",
+      "text": " ho payega?",
+      "ts": 1788564448189
+    },
+    {
+      "who": "buyer",
+      "text": " अ",
+      "ts": 1788564476383
+    },
+    {
+      "who": "buyer",
+      "text": "ग",
+      "ts": 1788564476504
+    },
+    {
+      "who": "buyer",
+      "text": "ले",
+      "ts": 1788564476717
+    },
+    {
+      "who": "buyer",
+      "text": " ह",
+      "ts": 1788564476931
+    },
+    {
+      "who": "buyer",
+      "text": "फ्ते",
+      "ts": 1788564477056
+    },
+    {
+      "who": "buyer",
+      "text": " ट्यूसडे तक",
+      "ts": 1788564477894
+    },
+    {
+      "who": "agent",
+      "text": "Theek hai.",
+      "ts": 1788564480189
+    },
+    {
+      "who": "agent",
+      "text": " Main ise",
+      "ts": 1788564480393
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788564480543
+    },
+    {
+      "who": "agent",
+      "text": " kar leti",
+      "ts": 1788564480661
+    },
+    {
+      "who": "agent",
+      "text": " hoon.",
+      "ts": 1788564480769
+    },
+    {
+      "who": "agent",
+      "text": " Dhanyavaad.",
+      "ts": 1788564480824
+    },
+    {
+      "who": "tool",
+      "text": "record_promise: Recorded. Outreach is frozen until 2026-09-08.",
+      "ts": 1788564481156
+    },
+    {
+      "who": "agent",
+      "text": "Call end",
+      "ts": 1788564481857
+    },
+    {
+      "who": "agent",
+      "text": " ho gayi",
+      "ts": 1788564482050
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788564482135
+    }
+  ]
+}
