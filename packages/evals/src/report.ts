@@ -4,6 +4,7 @@
  * with `pnpm evals:report`.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import { fastPath, route, templateDraft, type CaseFile, type Decision } from "@baaki/core";
 import { runSim, type PersonaOverrides, type SimMetrics, type SimResult } from "@baaki/sim";
 import { croreLakh, pm, range, summarise, type Summary } from "./stats.js";
 
@@ -28,10 +29,35 @@ const pct = (m: SimMetrics) => (m.billed === 0 ? 0 : (m.collectedTotal / m.bille
 const pctAt = (m: SimMetrics, day: number) =>
   m.billed === 0 ? 0 : (m.collectedByDay[day]! / m.billed) * 100;
 
-async function mainRuns(holdout: number): Promise<SeedRow[]> {
+/**
+ * Counts what the router would have handed to a case agent, then does exactly
+ * what these runs do: fall back to the rules. The count is reported in §0 so
+ * the size of the unevaluated surface is a number rather than a footnote.
+ */
+const coverage = { escalated: 0, freeText: 0, button: 0, reasons: {} as Record<string, number> };
+
+function countingDecider(c: CaseFile): Decision {
+  coverage.escalated += 1;
+  const r = route(c);
+  coverage.reasons[r.reason] = (coverage.reasons[r.reason] ?? 0) + 1;
+  const fp = fastPath(c, (rung, persona) => templateDraft(c, rung, persona));
+  return { action: fp.action, rationale: fp.rationale, confidence: 1, actor: "fast" };
+}
+
+async function mainRuns(holdout: number, instrument = false): Promise<SeedRow[]> {
   const rows: SeedRow[] = [];
   for (const seed of SEEDS) {
-    const r = await runSim({ seed, invoices: INVOICES, horizonDays: HORIZON, holdout });
+    const r = await runSim({
+      seed, invoices: INVOICES, horizonDays: HORIZON, holdout,
+      ...(instrument ? { slowDecider: countingDecider } : {}),
+    });
+    if (instrument) {
+      for (const rep of r.ledger.allReplies()) {
+        if (r.ledger.invoice(rep.invoiceId).arm !== "baaki") continue;
+        if (rep.source === "free_text") coverage.freeText += 1;
+        else coverage.button += 1;
+      }
+    }
     rows.push({ seed, baaki: r.byArm.baaki!, baseline: r.byArm.baseline! });
   }
   return rows;
@@ -249,7 +275,7 @@ async function untreatedDso(): Promise<Summary> {
 // ---------------------------------------------------------------------------
 
 console.error("running arms (balanced)…");
-const rows = await mainRuns(HOLDOUT);
+const rows = await mainRuns(HOLDOUT, true);
 console.error("running arms (deployment holdout)…");
 const deployRows = await mainRuns(DEPLOY_HOLDOUT);
 console.error("running ablation…");

@@ -1,23 +1,19 @@
 /* Baaki dashboard — claude-design tokens, light mode only. */
 
-@font-face {
-  font-family: "Anthropic Sans";
-  src: url("/fonts/AnthropicSans-300.woff2") format("woff2");
-  font-weight: 300;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Anthropic Serif";
-  src: url("/fonts/AnthropicSerif-300.woff2") format("woff2");
-  font-weight: 300;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Anthropic Mono";
-  src: url("/fonts/AnthropicMono-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
+/*
+ * The claude-design system specifies Anthropic Serif / Sans / Mono. Those
+ * woff2 files are not redistributable and are not in this repository, so the
+ * stacks below fall through to the closest system equivalents: a transitional
+ * serif for display, the platform UI sans for body, and the platform mono.
+ *
+ * To use the real faces, drop the three woff2 files into
+ * apps/dashboard/public/fonts/ and uncomment this block. The stacks already
+ * name them first, so nothing else changes.
+ *
+ * @font-face { font-family: "Anthropic Serif"; src: url("/fonts/AnthropicSerif-300.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+ * @font-face { font-family: "Anthropic Sans";  src: url("/fonts/AnthropicSans-300.woff2")  format("woff2"); font-weight: 300; font-display: swap; }
+ * @font-face { font-family: "Anthropic Mono";  src: url("/fonts/AnthropicMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+ */
 
 :root {
   /* palette — every color in this file traces to the claude-design token sheet */
@@ -40,7 +36,7 @@
   --hairline: rgba(31, 30, 29, 0.12);
   --hairline-strong: rgba(31, 30, 29, 0.22);
 
-  --font-serif: "Anthropic Serif", Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --font-serif: "Anthropic Serif", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sans: "Anthropic Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "Anthropic Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
