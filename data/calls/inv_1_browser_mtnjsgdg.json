@@ -1,0 +1,241 @@
+{
+  "invoiceId": "inv_1",
+  "callSid": "browser_mtnjsgdg",
+  "lines": [
+    {
+      "who": "agent",
+      "text": "Namaste, main",
+      "ts": 1788562262254
+    },
+    {
+      "who": "agent",
+      "text": " Sharma",
+      "ts": 1788562262574
+    },
+    {
+      "who": "agent",
+      "text": " Traders",
+      "ts": 1788562262673
+    },
+    {
+      "who": "agent",
+      "text": " ke liye",
+      "ts": 1788562262777
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788562262884
+    },
+    {
+      "who": "agent",
+      "text": " payment",
+      "ts": 1788562262948
+    },
+    {
+      "who": "agent",
+      "text": " reminder",
+      "ts": 1788562262998
+    },
+    {
+      "who": "agent",
+      "text": " ke silsile",
+      "ts": 1788562263130
+    },
+    {
+      "who": "agent",
+      "text": " mein call",
+      "ts": 1788562263229
+    },
+    {
+      "who": "agent",
+      "text": " kar raha",
+      "ts": 1788562263324
+    },
+    {
+      "who": "agent",
+      "text": " hoon.",
+      "ts": 1788562263418
+    },
+    {
+      "who": "agent",
+      "text": " Ye call",
+      "ts": 1788562263460
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788562263640
+    },
+    {
+      "who": "agent",
+      "text": " ho rahi",
+      "ts": 1788562263746
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788562263818
+    },
+    {
+      "who": "agent",
+      "text": " Do minute",
+      "ts": 1788562263861
+    },
+    {
+      "who": "agent",
+      "text": " baat",
+      "ts": 1788562264007
+    },
+    {
+      "who": "agent",
+      "text": " kar sakte",
+      "ts": 1788562264075
+    },
+    {
+      "who": "agent",
+      "text": " hain?",
+      "ts": 1788562264193
+    },
+    {
+      "who": "buyer",
+      "text": "haan bolo",
+      "ts": 1788562271197
+    },
+    {
+      "who": "agent",
+      "text": "Sharma Traders",
+      "ts": 1788562272551
+    },
+    {
+      "who": "agent",
+      "text": " ka ₹1,80,000",
+      "ts": 1788562272869
+    },
+    {
+      "who": "agent",
+      "text": " ka",
+      "ts": 1788562273214
+    },
+    {
+      "who": "agent",
+      "text": " ek",
+      "ts": 1788562273289
+    },
+    {
+      "who": "agent",
+      "text": " pending",
+      "ts": 1788562273344
+    },
+    {
+      "who": "agent",
+      "text": " invoice",
+      "ts": 1788562273443
+    },
+    {
+      "who": "agent",
+      "text": " hai,",
+      "ts": 1788562273536
+    },
+    {
+      "who": "agent",
+      "text": " jo 22",
+      "ts": 1788562273601
+    },
+    {
+      "who": "agent",
+      "text": " din",
+      "ts": 1788562273784
+    },
+    {
+      "who": "agent",
+      "text": " pehle",
+      "ts": 1788562273825
+    },
+    {
+      "who": "agent",
+      "text": " due",
+      "ts": 1788562273911
+    },
+    {
+      "who": "agent",
+      "text": " ho chuka",
+      "ts": 1788562273964
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788562274061
+    },
+    {
+      "who": "agent",
+      "text": " Aap payment",
+      "ts": 1788562274137
+    },
+    {
+      "who": "agent",
+      "text": " kab tak",
+      "ts": 1788562274332
+    },
+    {
+      "who": "agent",
+      "text": " kar payenge?",
+      "ts": 1788562274392
+    },
+    {
+      "who": "buyer",
+      "text": "Friday tak paisa bhej dunga, pakka",
+      "ts": 1788562280197
+    },
+    {
+      "who": "agent",
+      "text": "Shukriya, maine",
+      "ts": 1788562281650
+    },
+    {
+      "who": "agent",
+      "text": " Friday",
+      "ts": 1788562282023
+    },
+    {
+      "who": "agent",
+      "text": " tak",
+      "ts": 1788562282125
+    },
+    {
+      "who": "agent",
+      "text": " ka payment",
+      "ts": 1788562282168
+    },
+    {
+      "who": "agent",
+      "text": " promise",
+      "ts": 1788562282268
+    },
+    {
+      "who": "agent",
+      "text": " record",
+      "ts": 1788562282361
+    },
+    {
+      "who": "agent",
+      "text": " kar liya",
+      "ts": 1788562282472
+    },
+    {
+      "who": "agent",
+      "text": " hai.",
+      "ts": 1788562282554
+    },
+    {
+      "who": "agent",
+      "text": " Dhanyavaad.",
+      "ts": 1788562282605
+    },
+    {
+      "who": "tool",
+      "text": "record_promise: Recorded. Outreach is frozen until 2026-09-11.",
+      "ts": 1788562282902
+    }
+  ]
+}

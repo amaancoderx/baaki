@@ -1,0 +1,8 @@
+{
+  "name": "@baaki/voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "tsx watch src/server.ts", "start": "tsx src/server.ts" },
+  "dependencies": { "@baaki/core": "workspace:*", "ws": "^8.18.0" }
+}

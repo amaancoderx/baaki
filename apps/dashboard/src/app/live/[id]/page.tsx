@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getState, type LiveInvoice } from "@/lib/api";
 import { formatINR, formatDateShort, formatTs } from "@/lib/format";
+import { CallPanel } from "@/components/CallPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +142,9 @@ export default async function LiveCasePage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
-          <div className="panel">
+          <CallPanel invoiceId={inv.id} buyerName={i.buyer.name} />
+
+          <div className="panel" style={{ marginTop: 12 }}>
             <div className="overline" style={{ marginBottom: 6 }}>Razorpay</div>
             {i.external.shortUrl ? (
               <>

@@ -21,12 +21,17 @@
     "evals:replies": "tsx packages/evals/src/reply-eval.ts",
     "evals:agentic": "tsx packages/evals/src/agentic-run.ts",
     "webhook": "tsx apps/webhook/src/server.ts",
-    "tunnel": "cloudflared tunnel --url http://localhost:3001"
+    "tunnel": "cloudflared tunnel --url http://localhost:3001",
+    "voice": "tsx apps/voice/src/server.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "ws": "^8.21.3"
   }
 }

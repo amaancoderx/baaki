@@ -1,0 +1,190 @@
+import {
+  DEFAULT_POLICY, LedgerStore, addDays, formatINR, istParts, razorpay,
+  type CivilDate, type Ledger, type Policy,
+} from "@baaki/core";
+
+/**
+ * In-call tools. A voice call is the least reviewable channel there is — no
+ * one reads it before it happens — so the tools are deliberately narrow:
+ * record what the buyer said, or hand the call to a person. Nothing here
+ * argues, negotiates, or agrees to a discount.
+ */
+
+export const VOICE_TOOLS = [
+  {
+    name: "record_promise",
+    description: "The buyer committed to paying by a specific date. Only call this when they named a date.",
+    parameters: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "ISO date YYYY-MM-DD, resolved against today." },
+        note: { type: "string", description: "What they actually said, briefly." },
+      },
+      required: ["date"],
+    },
+  },
+  {
+    name: "record_dispute",
+    description: "The buyer is contesting the invoice. Record it and stop chasing. Do not argue the point.",
+    parameters: {
+      type: "object",
+      properties: { reason: { type: "string", description: "Their stated reason, in their words." } },
+      required: ["reason"],
+    },
+  },
+  {
+    name: "send_payment_link_now",
+    description: "Send a fresh payment link to this buyer on WhatsApp while they are on the call.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "set_do_not_call",
+    description: "The buyer asked not to be contacted again. Permanent, and applies to every channel.",
+    parameters: {
+      type: "object",
+      properties: { reason: { type: "string" } },
+    },
+  },
+  {
+    name: "escalate_to_human",
+    description: "Hand the call to a person. Use whenever the buyer asks for one, is angry, disputes something complicated, or you are unsure.",
+    parameters: {
+      type: "object",
+      properties: { reason: { type: "string" } },
+      required: ["reason"],
+    },
+  },
+] as const;
+
+export interface VoiceContext {
+  invoiceId: string;
+  buyerName: string;
+  buyerPhone: string;
+  outstanding: number;
+  dueOn: CivilDate;
+  daysOverdue: number;
+  today: CivilDate;
+  shortUrl?: string;
+}
+
+export interface ToolOutcome { ok: boolean; detail: string; endCall?: boolean }
+
+export async function runVoiceTool(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: VoiceContext,
+  store: LedgerStore,
+  policy: Policy = DEFAULT_POLICY,
+  callSid = "browser",
+): Promise<ToolOutcome> {
+  const now = Date.now();
+  const evidence = [`call:${callSid}`];
+
+  switch (name) {
+    case "record_promise": {
+      const date = String(args.date ?? "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < ctx.today) {
+        return { ok: false, detail: "That date is not usable. Ask them for a specific day." };
+      }
+      await store.update((l: Ledger) => {
+        l.recordReply({
+          invoiceId: ctx.invoiceId, buyerId: l.invoice(ctx.invoiceId).buyerId, ts: now,
+          channel: "whatsapp", source: "free_text",
+          text: `[voice call] ${String(args.note ?? `promised payment by ${date}`)}`,
+          intent: "promise", promiseDate: date, confidence: 0.9,
+        });
+      }, policy);
+      return { ok: true, detail: `Recorded. Outreach is frozen until ${date}.` };
+    }
+
+    case "record_dispute": {
+      const reason = String(args.reason ?? "buyer contested the invoice on a call");
+      await store.update((l: Ledger) => {
+        l.recordReply({
+          invoiceId: ctx.invoiceId, buyerId: l.invoice(ctx.invoiceId).buyerId, ts: now,
+          channel: "whatsapp", source: "free_text",
+          text: `[voice call] ${reason}`, intent: "dispute", disputeReason: reason, confidence: 0.9,
+        });
+      }, policy);
+      return { ok: true, detail: "Recorded. Outreach is frozen and the merchant has been notified.", endCall: false };
+    }
+
+    case "send_payment_link_now": {
+      if (!process.env.RAZORPAY_KEY_ID) return { ok: false, detail: "Payment links are not configured." };
+      const rzp = razorpay({
+        keyId: process.env.RAZORPAY_KEY_ID!, keySecret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+      const link = await rzp.createPaymentLink({
+        amount: ctx.outstanding,
+        description: `Invoice ${ctx.invoiceId} (sent during a call)`,
+        customer: { name: ctx.buyerName, contact: `+${ctx.buyerPhone}` },
+        expireBy: Math.floor(Date.parse(`${addDays(ctx.today, 14)}T18:00:00+05:30`) / 1000),
+      });
+      await store.update((l: Ledger) => {
+        l.noteExternal(ctx.invoiceId, { razorpayPaymentLinkId: link.id, shortUrl: link.short_url });
+        l.invoice(ctx.invoiceId).linkExpiresOn = addDays(ctx.today, 14);
+        l.audit.append({
+          ts: now, invoiceId: ctx.invoiceId, actor: "agent", action: "reissue_payment_path",
+          params: { paymentLinkId: link.id, shortUrl: link.short_url, via: "voice call" },
+          rationale: `Buyer asked for the link during a call. Fresh payment link issued for ${formatINR(ctx.outstanding)}.`,
+          guards: [], policyVersion: policy.policyVersion, evidence: [link.id, ...evidence],
+        });
+      }, policy);
+      return { ok: true, detail: `Link sent: ${link.short_url}` };
+    }
+
+    case "set_do_not_call": {
+      await store.update((l: Ledger) => {
+        l.recordReply({
+          invoiceId: ctx.invoiceId, buyerId: l.invoice(ctx.invoiceId).buyerId, ts: now,
+          channel: "whatsapp", source: "free_text",
+          text: `[voice call] ${String(args.reason ?? "asked not to be contacted")}`,
+          intent: "stop", confidence: 1,
+        });
+      }, policy);
+      return { ok: true, detail: "Recorded. This buyer will not be contacted again on any channel.", endCall: true };
+    }
+
+    case "escalate_to_human": {
+      const reason = String(args.reason ?? "buyer asked for a person");
+      await store.update((l: Ledger) => {
+        l.setSubstate(ctx.invoiceId, "human_hold",
+          `Voice call handed to a person: ${reason}`, "agent", evidence);
+      }, policy);
+      return { ok: true, detail: "A person will call back.", endCall: true };
+    }
+
+    default:
+      return { ok: false, detail: `unknown tool ${name}` };
+  }
+}
+
+/** Consent first, always, and in the buyer's language. */
+export function systemInstruction(ctx: VoiceContext): string {
+  return `You are calling on behalf of a merchant about one unpaid invoice. You are not a debt collector and you do not negotiate.
+
+Open with exactly this, in the buyer's language, before anything else:
+"Namaste, main ${ctx.buyerName} ke liye ek payment reminder ke silsile mein call kar raha hoon. Ye call record ho rahi hai. Do minute baat kar sakte hain?"
+
+If they say no, thank them and end the call. Do not push.
+
+The invoice:
+- Amount outstanding: ${formatINR(ctx.outstanding)}
+- Was due: ${ctx.dueOn} (${ctx.daysOverdue} days ago)
+- Today is ${ctx.today}
+
+What you are for:
+- Ask when they can pay. If they name a date, call record_promise with that date resolved to YYYY-MM-DD.
+- If they dispute the invoice, call record_dispute and stop. Do not defend the invoice, do not explain why they are wrong, do not ask them to reconsider.
+- If they want the payment link, call send_payment_link_now.
+- If they ask not to be called again, call set_do_not_call.
+- If they are angry, want a person, or the situation is anything other than the four above, call escalate_to_human.
+
+How to speak:
+- Hindi, Hinglish or English, whichever they use. Match them.
+- Short sentences. This is a phone call, not a letter.
+- Never state an amount other than ${formatINR(ctx.outstanding)}. Never offer a discount, a waiver, or an instalment plan. Never mention legal action, courts, or consequences.
+- Never claim payment has been received. Only the payment provider knows that.
+
+End the call once you have recorded something or been told no. Do not keep talking.`;
+}
