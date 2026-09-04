@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+.env
+.env.local
+*.db
+*.db-journal
+.DS_Store
+evals/out/
+sim-runs/
+apps/dashboard/data/snapshot.json

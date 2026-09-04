@@ -1,0 +1,9 @@
+{
+  "name": "@baaki/evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "@baaki/core": "workspace:*", "@baaki/sim": "workspace:*" }
+}

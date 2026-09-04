@@ -1,0 +1,118 @@
+# Architecture
+
+## The loop
+
+```
+Signals ──▶ Ledger ──▶ Decide ──▶ Guards ──▶ Act ──▶ Audit
+   ▲                  (router)                        │
+   │              fast path │ case agent              │
+   └──── paid / expired / credited webhooks ──────────┘
+```
+
+One pass per invoice per day, plus a pass whenever a buyer replies. Each pass
+ends in exactly one action and one audit entry.
+
+## Packages
+
+| Package | Holds |
+| --- | --- |
+| `packages/core` | ledger, memory, guards, router, fast-path policy, drafts, executor, audit |
+| `packages/sim` | personas, hazard engine, RNG streams, reply renderer, snapshot generator |
+| `packages/evals` | invariant suite over full runs, report generator, statistics |
+| `apps/dashboard` | Next.js — Today and Case |
+
+## Ledger
+
+One record per invoice. State (`open → due → overdue`) is a function of the
+calendar. Substate (`awaiting_reply | promised | disputed | human_hold | paid |
+closed`) is a function of events.
+
+Buyer memory is recomputed from the event log rather than incrementally patched,
+so the numbers on screen always match the events beneath them. Money is paise as
+an integer throughout; rupee floats do not survive arithmetic and the report
+compares collected amounts across seeds.
+
+Two sets matter:
+
+- `TERMINAL` = `paid`, `closed`
+- `AGENT_MAY_NOT_REOPEN` = `paid`, `closed`, `human_hold`
+
+The second exists because an inbound promise must not hand a case back to the
+machine after a person has taken it. See `docs/FAILURES.md` §3.
+
+## Router
+
+Deterministic and small. A case goes to the slow path only when it needs
+judgment:
+
+- an unhandled free-text reply
+- a reply parsed below the confidence threshold
+- a promise whose date passed without payment
+- a dispute open longer than `disputeStaleDays`
+- silence past the escalation threshold with touches remaining
+- the next rung is `owner_whatsapp` or `human`
+
+Everything else is the fast path. The split is measured, not asserted: the Today
+screen labels each case `rules` or `case agent`, and the reason is on the card.
+
+## Guards
+
+Nine pure functions of `(case, action, now)`. They run at **execution** time, not
+proposal time — a decision made at 17:58 that arrives at 18:01 does not go out.
+
+`stop_on_paid` · `do_not_contact` · `campaign_end` · `no_contact_while_held` ·
+`contact_window` · `max_touches` · `min_gap_days` · `whatsapp_24h_window` ·
+`draft_filter`
+
+Every guard runs on every action, always. Short-circuiting on the first failure
+would leave the audit trail with a partial picture, and completeness is the
+point of the log.
+
+Only outbound contact is gated. `schedule_wait`, `escalate_to_human` and `stop`
+are always permitted, so a case can always reach a terminal state.
+
+## Fast path
+
+A pure function `policy(case) → action`. Given the same case file it returns the
+same action, which is what makes the holdout comparison meaningful.
+
+Rung gaps widen as the ladder climbs, and widen again for buyers who have never
+replied. A buyer who has ignored `silentTouchCap` messages goes to a human
+rather than getting another. All three came out of measurement — see
+`docs/FAILURES.md` §4 and `evals/report.md` §2b.
+
+## Audit
+
+Append-only. Nothing mutates or removes an entry. Each carries actor, action,
+params, rationale, every guard verdict, policy version, and at least one
+evidence link. The constructor rejects an entry with no rationale or no
+evidence, so the invariant is enforced at the write rather than tested after.
+
+Export is JSON or CSV.
+
+## Simulator
+
+Buyer personas are rule-based parameter sets in
+`packages/sim/src/personas.yaml`, hidden from the agent by construction — the
+`CaseFile` type has no field that could carry them. The model's only role in the
+simulator is rendering the surface text of a reply whose intent the rules already
+sampled.
+
+Randomness is split into a setup stream (buyers, personas, amounts, arm
+assignment) and per-buyer `hazard` / `reply` / `text` streams. This keeps the
+comparison paired: a policy edit cannot reshuffle who is which persona or which
+arm they landed in. See `docs/FAILURES.md` §2.
+
+## Dashboard
+
+`apps/dashboard/data/snapshot.json` is emitted by
+`packages/sim/src/snapshot.ts`, which freezes a real run at a chosen day. The
+proposals on the Today screen are computed by the real `route()`, `fastPath()`
+and `runGuards()` against the frozen ledger. Nothing in the JSON is authored by
+hand.
+
+Regenerate with:
+
+```
+pnpm snapshot
+```
