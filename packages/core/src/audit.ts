@@ -41,6 +41,19 @@ export class AuditLog {
     return entry;
   }
 
+  /**
+   * Reload a persisted log. Append-only holds across restarts: entries come
+   * back exactly as written, and the sequence continues past them rather than
+   * restarting and colliding.
+   */
+  restore(entries: AuditEntry[]): void {
+    this.#entries = [...entries];
+    for (const e of entries) {
+      const n = Number(e.id.replace(/^a_/, ""));
+      if (Number.isFinite(n) && n > this.#seq) this.#seq = n;
+    }
+  }
+
   all(): readonly AuditEntry[] {
     return this.#entries;
   }

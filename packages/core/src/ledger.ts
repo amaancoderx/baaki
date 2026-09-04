@@ -4,6 +4,31 @@ import { addDays, daysBetween, istParts, systemClock, type CivilDate, type Clock
 import type {
   Buyer, BuyerMemory, CaseFile, Invoice, Payment, Policy, Reply, Rung, Touch,
 } from "./types.js";
+import type { AuditEntry } from "./audit.js";
+
+/** Razorpay identifiers for one invoice. Kept beside the ledger record rather
+ *  than inside it: the ledger models chasing, not the payment provider. */
+export interface ExternalRefs {
+  razorpayCustomerId?: string;
+  razorpayInvoiceId?: string;
+  razorpayPaymentLinkId?: string;
+  virtualAccountId?: string;
+  shortUrl?: string;
+}
+
+export interface LedgerSnapshot {
+  version: 1;
+  external?: [string, ExternalRefs][];
+  policy: Policy;
+  seq: number;
+  buyers: Buyer[];
+  memory: BuyerMemory[];
+  invoices: Invoice[];
+  touches: Touch[];
+  replies: Reply[];
+  payments: Payment[];
+  audit: AuditEntry[];
+}
 import { DEFAULT_POLICY } from "./types.js";
 
 const TERMINAL: ReadonlySet<Invoice["substate"]> = new Set(["paid", "closed"]);
@@ -38,6 +63,7 @@ export class Ledger {
   #touches: Touch[] = [];
   #replies: Reply[] = [];
   #payments: Payment[] = [];
+  #external = new Map<string, ExternalRefs>();
   #seq = 0;
 
   constructor(opts: LedgerOptions = {}) {
@@ -61,6 +87,23 @@ export class Ledger {
   }
 
   // -- reads ----------------------------------------------------------------
+
+  buyersList(): Buyer[] {
+    return [...this.#buyers.values()];
+  }
+
+  /** Merge in Razorpay identifiers as they are created or reissued. */
+  noteExternal(invoiceId: string, refs: ExternalRefs): void {
+    const cur = this.#external.get(invoiceId) ?? {};
+    for (const [k, v] of Object.entries(refs)) {
+      if (v !== undefined) (cur as Record<string, unknown>)[k] = v;
+    }
+    this.#external.set(invoiceId, cur);
+  }
+
+  external(invoiceId: string): ExternalRefs | undefined {
+    return this.#external.get(invoiceId);
+  }
 
   buyer(id: string): Buyer {
     const b = this.#buyers.get(id);
@@ -120,16 +163,36 @@ export class Ledger {
   }
 
   /** The rung a fresh touch would occupy: one past the highest already sent. */
-  nextRung(inv: Invoice): Rung {
+  nextRung(inv: Invoice, today?: CivilDate): Rung {
     const ladder = this.policy.ladder;
     const sent = this.touchesFor(inv.id);
-    if (sent.length === 0) return ladder[0]!;
+    if (sent.length === 0) {
+      // A pre-due reminder on an invoice that is already overdue is nonsense.
+      // Onboarded books arrive overdue with no history, so the first rung has
+      // to be chosen against the calendar rather than assumed.
+      const overdue = today ? daysBetween(inv.dueOn, today) > 0 : inv.state === "overdue";
+      if (overdue) {
+        const i = ladder.indexOf("pre_due");
+        return ladder[i >= 0 ? Math.min(i + 1, ladder.length - 1) : 0]!;
+      }
+      return ladder[0]!;
+    }
     let highest = -1;
     for (const t of sent) {
       const idx = ladder.indexOf(t.rung);
       if (idx > highest) highest = idx;
     }
     return ladder[Math.min(highest + 1, ladder.length - 1)]!;
+  }
+
+  /** Latest audit entry written by a decider, as opposed to an inbound webhook. */
+  lastDecisionTs(invoiceId: string): number | null {
+    let ts: number | null = null;
+    for (const e of this.audit.forInvoice(invoiceId)) {
+      if (e.actor !== "fast" && e.actor !== "agent") continue;
+      if (ts === null || e.ts > ts) ts = e.ts;
+    }
+    return ts;
   }
 
   caseFile(invoiceId: string, nowMs: number): CaseFile {
@@ -146,7 +209,8 @@ export class Ledger {
       replies: this.repliesFor(invoiceId),
       payments: this.paymentsFor(invoiceId),
       daysOverdue: this.daysOverdue(inv, today),
-      nextRung: this.nextRung(inv),
+      nextRung: this.nextRung(inv, today),
+      lastDecisionTs: this.lastDecisionTs(invoiceId),
       policy: this.policy,
     };
   }
@@ -259,6 +323,45 @@ export class Ledger {
 
   linkIsLive(inv: Invoice, today: CivilDate): boolean {
     return inv.linkExpiresOn !== null && daysBetween(today, inv.linkExpiresOn) >= 0;
+  }
+
+  // -- persistence ----------------------------------------------------------
+
+  /**
+   * Whole-ledger snapshot. The live app runs across separate processes — a
+   * webhook delivery, a dashboard request, a tick — so state has to outlive
+   * any one of them. Audit entries are included and never rewritten on load.
+   */
+  toJSON(): LedgerSnapshot {
+    return {
+      version: 1,
+      policy: this.policy,
+      seq: this.#seq,
+      buyers: [...this.#buyers.values()],
+      memory: [...this.#memory.values()],
+      invoices: [...this.#invoices.values()],
+      touches: this.#touches,
+      replies: this.#replies,
+      payments: this.#payments,
+      external: [...this.#external.entries()],
+      audit: [...this.audit.all()],
+    };
+  }
+
+  static fromJSON(snap: LedgerSnapshot, opts: LedgerOptions = {}): Ledger {
+    // opts.policy is the live configuration and takes precedence; the stored
+    // copy is only a fallback for a snapshot loaded without one.
+    const l = new Ledger({ policy: opts.policy ?? snap.policy, clock: opts.clock });
+    for (const b of snap.buyers) l.#buyers.set(b.id, b);
+    for (const m of snap.memory) l.#memory.set(m.buyerId, m);
+    for (const i of snap.invoices) l.#invoices.set(i.id, i);
+    l.#touches = snap.touches;
+    l.#replies = snap.replies;
+    l.#payments = snap.payments;
+    l.#seq = snap.seq;
+    for (const [k, v] of snap.external ?? []) l.#external.set(k, v);
+    l.audit.restore(snap.audit);
+    return l;
   }
 
   #audit(

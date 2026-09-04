@@ -125,6 +125,13 @@ export interface CaseFile {
   payments: Payment[];
   daysOverdue: number;
   nextRung: Rung;
+  /**
+   * When a decider last acted on this invoice. A reply is "handled" once a
+   * decision postdates it, even a decision that sends nothing — otherwise a
+   * case answered with schedule_wait re-escalates to the agent every single
+   * day for the life of the promise.
+   */
+  lastDecisionTs: number | null;
   policy: Policy;
 }
 

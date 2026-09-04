@@ -369,3 +369,111 @@ button { font: inherit; cursor: pointer; background: none; border: none; color: 
 /* highlight an event when its citation is followed */
 .tl-item:target .tl-card-inner,
 .tl-item:target > div { background: var(--accent-wash); border-radius: var(--r); }
+
+/* ---------- Hinglish explainers ---------- */
+
+/*
+ * Every screen carries a plain-language note in Hinglish saying what is about
+ * to happen and what the system will do on its own. The register is how a
+ * merchant would explain it to a colleague, not translated marketing copy.
+ */
+.explain {
+  background: var(--surface);
+  border: 1px solid rgba(31, 30, 29, 0.08);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.explain strong { font-weight: 600; color: var(--ink); }
+.explain .tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  margin-bottom: 4px;
+}
+.explain-inline {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* ---------- steps ---------- */
+
+.steps { display: flex; align-items: center; gap: 0; margin-bottom: 24px; }
+.step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; font-size: 13px; color: var(--text-4);
+  border-bottom: 2px solid var(--hairline); flex: 1;
+}
+.step.active { color: var(--ink); border-bottom-color: var(--accent); }
+.step.done { color: var(--text-muted); border-bottom-color: var(--accent-wash); }
+.step-n {
+  width: 20px; height: 20px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  background: rgba(31,30,29,0.06); color: var(--text-3); flex-shrink: 0;
+}
+.step.active .step-n { background: var(--accent-deep); color: #fff; }
+.step.done .step-n { background: var(--accent-wash); color: var(--accent-deep); }
+
+/* ---------- forms ---------- */
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.input, .select, .textarea {
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r);
+  padding: 8px 11px;
+  font: inherit; font-size: 14px; color: var(--ink);
+  width: 100%; outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+.input.num { font-variant-numeric: tabular-nums; }
+.hint { font-size: 11px; color: var(--text-4); }
+
+.contact-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--r);
+  border: 1px solid transparent; cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.contact-row:hover { background: rgba(31,30,29,0.03); }
+.contact-row.picked { border-color: var(--accent); background: var(--accent-wash); }
+
+.avatar {
+  width: 30px; height: 30px; border-radius: 999px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--accent-deep);
+  background: var(--accent-wash);
+}
+
+/* ---------- run log ---------- */
+
+.runline {
+  display: grid;
+  grid-template-columns: 84px 150px 1fr auto;
+  gap: 12px; align-items: baseline;
+  padding: 9px 12px; font-size: 13px;
+  border-top: 1px solid var(--hairline);
+}
+.runline:first-child { border-top: none; }
+.runline .who { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runline .why { color: var(--text-3); font-size: 12px; }
+
+.spinner {
+  width: 12px; height: 12px; border-radius: 999px;
+  border: 2px solid var(--accent-wash); border-top-color: var(--accent-deep);
+  display: inline-block; animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

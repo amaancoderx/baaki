@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { loadSnapshot } from "@/lib/data";
-import { formatDate } from "@/lib/format";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,17 +8,19 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const snap = loadSnapshot();
   return (
     <html lang="en">
       <body>
         <div className="shell">
           <nav className="nav">
             <Link href="/" className="nav-brand">baaki<span>.</span></Link>
-            <Link href="/" className="nav-link active">Today</Link>
+            <Link href="/" className="nav-link">Today</Link>
+            <Link href="/new" className="nav-link">Naya invoice</Link>
+            <Link href="/run" className="nav-link">Agent run</Link>
             <div className="nav-right">
-              <span className="chip chip-neutral"><span className="dot pulse" style={{ background: "var(--accent)" }} /> sim · seed {snap.seed}</span>
-              <span className="nav-date">Ledger as of {formatDate(snap.date)}</span>
+              <span className="chip chip-accent">
+                <span className="dot pulse" style={{ background: "var(--accent-deep)" }} /> live
+              </span>
             </div>
           </nav>
           <main style={{ flex: 1, paddingBlock: 32 }}>{children}</main>

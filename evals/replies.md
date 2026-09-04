@@ -10,27 +10,31 @@ this system.** See `packages/evals/data/README.md`.
 
 ### Author-written — regression only, not an accuracy claim
 
-28 cases. Intent accuracy **96.4%** (27/28).
+40 cases. Intent accuracy **87.5%** (35/40).
 
-Promise-date exact match: **100.0%** (7/7).
+Promise-date exact match: **100.0%** (9/9).
 
 | Intent | Support | Precision | Recall | F1 |
 | --- | --- | --- | --- | --- |
-| `will_pay` | 6 | 100% | 83% | 91% |
-| `promise` | 7 | 100% | 100% | 100% |
-| `dispute` | 5 | 100% | 100% | 100% |
-| `already_paid` | 3 | 100% | 100% | 100% |
-| `partial` | 1 | 100% | 100% | 100% |
-| `stop` | 3 | 100% | 100% | 100% |
-| `unclear` | 3 | 75% | 100% | 86% |
+| `will_pay` | 10 | 100% | 70% | 82% |
+| `promise` | 9 | 82% | 100% | 90% |
+| `dispute` | 7 | 88% | 100% | 93% |
+| `already_paid` | 4 | 100% | 100% | 100% |
+| `partial` | 2 | 100% | 50% | 67% |
+| `stop` | 4 | 100% | 100% | 100% |
+| `unclear` | 4 | 60% | 75% | 67% |
 
-**1 miss:**
+**5 misses:**
 
 | id | text | expected | got | conf | note |
 | --- | --- | --- | --- | --- | --- |
 | r019 | ok noted | will_pay | unclear | 0.70 | acknowledgement only |
+| r029 | ye kis cheez ka hai bhai | unclear | dispute | 0.90 | does not recognise the invoice |
+| r030 | 30 percent aaj bhej raha hoon, rest month end | partial | promise 2025-10-31 | 0.95 | explicit split payment |
+| r036 | ok | will_pay | unclear | 0.40 | minimal acknowledgement |
+| r038 | kal ya parso | will_pay | promise 2025-11-01 | 0.90 | two candidate days, ambiguous; should not become a firm promise |
 
-Mean confidence when correct: 0.90; when wrong: 0.70. Below the 0.6 routing threshold: 1 of 28.
+Mean confidence when correct: 0.90; when wrong: 0.77. Below the 0.6 routing threshold: 2 of 40.
 
 > The same person wrote the parser prompt and these cases. This number
 > measures self-consistency and catches regressions. It is not evidence of

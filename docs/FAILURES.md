@@ -141,6 +141,83 @@ separately with its wider interval. Both are in `evals/report.md` §2.
 
 ---
 
+## 7. The whole agent layer was wired but never called
+
+**What was wrong.** The simulator's `runSim` took an optional `slowDecider`.
+Nothing ever passed one. The router faithfully computed that a case needed
+judgment, and then this ran:
+
+```ts
+if (r.route === "slow" && opts.slowDecider) { ... } else { fastPath(c) }
+```
+
+**How it showed.** It did not show. Every test passed, the invariants held, the
+report generated, and the README described a system with a case agent in it.
+The question "how did you eval without an LLM API?" is what surfaced it.
+
+Instrumenting the router during a run rather than after gave the size: **13,593
+decisions across 5 seeds** were escalated to a case agent that did not exist and
+silently fell back to rules. Separately, the simulator handed the ledger the
+reply intent it had sampled, so **70% of inbound replies were free text that no
+parser ever read** — the agent was scored with perfect comprehension it had not
+earned.
+
+**Why it mattered.** Not one published number was wrong, but the report did not
+say which parts of the system produced them. A reader would reasonably have
+assumed the model was in the loop.
+
+**Fix.** The agent is built and bounded (`packages/core/src/agent/`), the parser
+is built (`understand.ts`), the simulator takes a `replyParser` that feeds only
+the parse to the ledger while keeping the sampled truth for scoring, and
+`evals/report.md` opens with §0 stating exactly what is deterministic and what
+is not. A model-in-the-loop run is in `evals/agentic-run.md`.
+
+---
+
+## 8. Gemini 3 rejected every multi-turn tool episode
+
+**What was wrong.** The adapter rebuilt tool history from `{name, args}` when
+feeding a prior call back to the model. Gemini 3.x issues each `functionCall`
+with a `thoughtSignature` and rejects the call if it returns without one:
+
+```
+400: Function call is missing a thought_signature in functionCall parts.
+```
+
+**How it showed.** 5 of 29 episodes in the first agentic run ended in
+`human-error`. The agent could decide immediately, but the moment it called a
+read tool first and tried to continue, the next turn 400'd. Mean tool calls per
+episode was 1.06 against a budget of 4 — the read tools were effectively dead.
+
+**Why it mattered.** Reading the case before deciding is the entire argument for
+having an agent rather than a rule. Failing closed to `escalate_to_human` meant
+it was safe but useless.
+
+**Fix.** `ToolCall` carries the provider's original part opaquely and replays it
+verbatim. Errors went to 0 and mean tool calls per episode to 1.66.
+
+---
+
+## 9. The router re-escalated the same case every day
+
+**What was wrong.** A free-text reply counted as handled only once a *touch*
+postdated it. An agent that answered with `schedule_wait` sent nothing, so the
+reply stayed forever unhandled.
+
+**How it showed.** `inv_8` went to the case agent on four consecutive days and
+produced the same `schedule_wait` each time, with the same reasoning, at full
+model cost. "unhandled free-text reply" was the top escalation reason at 18 of
+31.
+
+**Why it mattered.** Every one of those is a paid call for a decision already
+made, and the ~80/20 deterministic split the design claims was quietly false.
+
+**Fix.** A reply is handled once any decision postdates it, including one that
+sends nothing, and a promise in flight is checked before the reply rules. That
+reason dropped from 18 to 1 and the fast/slow split settled at 94/6.
+
+---
+
 ## Still open
 
 - **The pre-due nudge measures net-negative and is shipped anyway.** It spends a
@@ -148,6 +225,12 @@ separately with its wider interval. Both are in `evals/report.md` §2.
   models a nudge as something that accelerates payment and cannot represent a
   pre-due reminder preventing lateness at all. That is a limitation of the model,
   but it does mean the rung is currently unsupported by measurement.
+- **The collection numbers are the rules layer, not the agent.** Scoring the
+  case agent across 10 seeds is thousands of live calls. `evals/report.md` §0
+  says so; `evals/agentic-run.md` covers the model in the loop at small scale.
+- **The reply eval is author-written and cannot be quoted as accuracy.** The
+  same person wrote the parser prompt and the cases. The 60 merchant-written
+  replies plan §7 asks for do not exist yet.
 - **Simulated rupees are authored rupees.** The persona parameters are a guess,
   written down and hidden from the agent, but a guess. What makes the result
   worth anything is that the guess is checked in, seeded, and published with the

@@ -85,6 +85,38 @@ made at 17:58 that arrives at 18:01 does not go out.
 More in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Every policy knob and
 where its value came from is in [`docs/POLICY.md`](docs/POLICY.md).
 
+## Where the model is, and where it is not
+
+| Job | Who does it | Evidence |
+| --- | --- | --- |
+| Prioritising, aging, memory, ladder position | arithmetic | `evals/report.md` |
+| Deciding the routine ~94% of cases | rules, one pure function | `packages/core/src/policy.ts` |
+| Reading free-text replies | model, strict JSON schema | `evals/replies.md` |
+| Deciding the ~6% that need judgment | model, six write tools | `evals/agentic-run.md` |
+| Allowing or refusing any of it | guards, pure functions | `packages/evals/src/invariants.test.ts` |
+
+**The collection numbers above are the deterministic layer only.** Scoring the
+case agent across 10 seeds would be thousands of live model calls, and those
+figures are meant to be reproducible without an API key. `evals/report.md` §0
+states this rather than leaving it to be assumed.
+
+A model-in-the-loop run is measured separately in `evals/agentic-run.md`: 29
+escalated cases decided by the agent, 0 guard violations, 0 failed episodes,
+mean 1.66 tool calls against a budget of 4.
+
+### The agent is bounded in code, not in the prompt
+
+One episode per case: at most 4 tool calls, exactly one write action, 20-second
+budget. If the model emits two write calls the first is taken and the rest are
+dropped and recorded. If it spends its budget reading without deciding, the case
+goes to a human. If it names a rupee figure that is not the outstanding balance,
+the figure is rewritten before the message can reach a buyer. If a guard refuses
+its action, the violation goes back verbatim for exactly one retry, and then the
+case goes to a human.
+
+Twelve tests in `packages/core/src/agent/agent.test.ts` hold those bounds, all
+against a fake model so they need no network.
+
 ## Guarantees, as tests
 
 `packages/evals/src/invariants.test.ts` runs over full simulated runs, not
@@ -106,7 +138,7 @@ fixtures. The test names are the stopping rules:
 ✓ records a guard verdict on every touch it logged
 ```
 
-44 tests, all passing. One of them caught a real compliance bug: an inbound
+56 tests, all passing. One of them caught a real compliance bug: an inbound
 promise was silently un-escalating a case a human already owned
 ([`docs/FAILURES.md`](docs/FAILURES.md) §3).
 
@@ -117,7 +149,11 @@ pnpm install
 pnpm test              # guards + invariants over full runs
 pnpm sim               # arms comparison, printed
 pnpm sim:calibrate     # untreated DSO against the ~73-day figure
-pnpm evals:report      # regenerates evals/report.md (~20 min)
+pnpm evals:report      # regenerates evals/report.md (~20 min, no API key needed)
+
+# these need GEMINI_API_KEY in .env
+pnpm evals:replies     # reply understanding, scored and cached
+pnpm evals:agentic     # small run with the model in the loop end to end
 
 pnpm snapshot          # freeze a run for the dashboard
 pnpm dev               # Today and Case at localhost:3000
@@ -145,13 +181,15 @@ together with the region where it loses.
 
 ## What broke
 
-[`docs/FAILURES.md`](docs/FAILURES.md) — six real entries, including a modelling
-bug that made the worst-paying persona the second-best, and a headline effect
-that shrank from +2.8pp to +0.6pp when the sample grew.
+[`docs/FAILURES.md`](docs/FAILURES.md) — nine real entries, including a modelling
+bug that made the worst-paying persona the second-best, a headline effect that
+shrank from +2.8pp to +0.6pp when the sample grew, an entire agent layer that was
+wired but never called, and a Gemini 3 requirement that silently killed every
+multi-turn tool episode.
 
 ## What is not built
 
-[`docs/STRETCH.md`](docs/STRETCH.md) — one line each. The case agent's LLM call,
-reply understanding, the WhatsApp channel and the Razorpay adapter are the next
-four. Nothing in this repository is a stub: a feature that is not finished does
-not exist in code.
+[`docs/STRETCH.md`](docs/STRETCH.md) — one line each. The WhatsApp channel and
+the Razorpay adapter are the next two, and the 60 merchant-written replies plan
+§7 asks for are the missing evidence. Nothing in this repository is a stub: a
+feature that is not finished does not exist in code.

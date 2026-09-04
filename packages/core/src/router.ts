@@ -23,24 +23,30 @@ export function route(c: CaseFile): RouteDecision {
     return { route: "fast", reason: "already held for a human" };
   }
 
-  // A free-text reply nobody has acted on yet.
-  const lastReply = c.replies[c.replies.length - 1];
-  const lastTouch = c.touches[c.touches.length - 1];
-  if (lastReply && lastReply.source === "free_text" && (!lastTouch || lastReply.ts > lastTouch.ts)) {
-    return { route: "slow", reason: "unhandled free-text reply" };
-  }
-
-  // Low-confidence parse: the model reads it again with the full case in view.
-  if (lastReply && lastReply.confidence < c.policy.minParseConfidence) {
-    return { route: "slow", reason: "reply parse below confidence threshold" };
-  }
-
-  // A promise that came and went without money.
+  // A promise in flight is settled business: the answer is to wait, and that
+  // does not need judgment. Checked before the reply rules, since the reply
+  // that created the promise would otherwise look perpetually unhandled.
   if (inv.substate === "promised" && inv.promisedFor) {
     if (daysBetween(inv.promisedFor, c.today) > 0 && inv.amountPaid < inv.amount) {
       return { route: "slow", reason: "promise broken" };
     }
     return { route: "fast", reason: "promise still in flight" };
+  }
+
+  // A reply counts as handled once any decision postdates it, including one
+  // that sent nothing. Comparing against touches alone re-escalates a case
+  // answered with schedule_wait every day until something is sent.
+  const lastReply = c.replies[c.replies.length - 1];
+  const lastTouch = c.touches[c.touches.length - 1];
+  const handledAt = Math.max(lastTouch?.ts ?? 0, c.lastDecisionTs ?? 0);
+
+  if (lastReply && lastReply.source === "free_text" && lastReply.ts > handledAt) {
+    return { route: "slow", reason: "unhandled free-text reply" };
+  }
+
+  // Low-confidence parse: the model reads it again with the full case in view.
+  if (lastReply && lastReply.confidence < c.policy.minParseConfidence && lastReply.ts > handledAt) {
+    return { route: "slow", reason: "reply parse below confidence threshold" };
   }
 
   // A dispute nobody has resolved.

@@ -10,6 +10,32 @@ the simulator in `packages/sim`; nothing here is hand-entered.
 - **Net terms:** 25 days
 - **Policy version:** p3
 
+## 0. What is measured here, and what is not
+
+**Every number in this file comes from the deterministic path.** The arms below
+run the ledger, buyer memory, router, fast-path policy, guards and audit. No
+language model was called to produce them.
+
+That is a deliberate limit, not an oversight. Scoring the case agent across
+10 seeds would mean roughly 745,920 live model calls at this scale;
+the collection figures are meant to be reproducible by anyone with the repo and
+no API key.
+
+Two consequences worth stating plainly:
+
+- The router escalated **74,592 decisions** to the case agent across these runs.
+  In *this* file they fell through to the rules. The agent exists, is bounded and
+  is tested — see `evals/agentic-run.md` for a run with the model in the loop
+  end to end, and `packages/core/src/agent/agent.test.ts` for the bounds.
+- Free-text replies here reach the ledger with the intent the simulator sampled,
+  not a parsed one. **3,979 of 5,569 replies were free text** (71%), so the
+  arms below give Baaki perfect comprehension for free. Real parse accuracy is in
+  `evals/replies.md`, and its failure modes are not free: hearing a promise that
+  was never made freezes outreach until a date the buyer never gave.
+
+Read the collection numbers as *what the guarded rules layer is worth*. The
+model's contribution is measured separately and is not folded in.
+
 ## 1. Arms
 
 **Baseline** sends fixed reminders at due, +7 and +14 on one channel and ignores
@@ -26,12 +52,12 @@ behaving the same way. A policy change cannot reshuffle who is who.
 | Collected by day 60 (% of billed) | 66.9 ± 1.9% | 70.3 ± 2.9% | +3.4% ✓ |
 | Collected by day 90 (% of billed) | 78.9 ± 1.8% | 81.8 ± 1.4% | +2.9% ✓ |
 | Collected at horizon (% of billed) | 84.3 ± 1.3% | 86.4 ± 1.4% | +2.1% ✓ |
-| DSO (days, issue to settlement) | 53.8 ± 1.7 | 53.7 ± 1.8 | -0.0 ✓ |
+| DSO (days, issue to settlement) | 53.8 ± 1.7 | 53.7 ± 1.8 | 0.0 — |
 | Touches per ₹1L collected | 1.25 ± 0.04 | 1.30 ± 0.05 | +0.05 ✗ |
 | Promise-kept rate | 39 ± 3% | 41 ± 2% | +2% ✓ |
-| Complaints | 0.0 ± 0.0 | 0.0 ± 0.0 | +0.0 ✗ |
-| Do-not-contact events | 0.0 ± 0.0 | 0.0 ± 0.0 | +0.0 ✗ |
-| Guard violations | 0 ± 0 | 0 ± 0 | +0 ✗ |
+| Complaints | 0.0 ± 0.0 | 0.0 ± 0.0 | 0.0 — |
+| Do-not-contact events | 0.0 ± 0.0 | 0.0 ± 0.0 | 0.0 — |
+| Guard violations | 0 ± 0 | 0 ± 0 | 0 — |
 
 Absolute money, mean over seeds: Baseline collected ₹10.44 Cr,
 Baaki ₹10.71 Cr. The arms hold roughly equal invoice counts at
@@ -122,23 +148,40 @@ invoices to read.
 
 ## 5. Sensitivity — where Baaki loses
 
-Grid over owner-persona lift, promise-kept probability, over-contact penalty and
-a scale on reply probability. 144 cells, 4 seeds each, 250 invoices per run.
+Six dimensions: owner-persona lift, promise-kept probability, over-contact
+penalty, a scale on reply probability, the fraction of payment links that expire
+before they are needed, and a scale on how much any touch moves the payment
+hazard. The last two were added after an ablation showed the first four could not
+produce a losing cell — they probe reply-reading and restraint, while the effect
+turned out to live mostly in link repair. 144 cells, 4 seeds each, 250 invoices per run.
 
-16 of 144 cells favour Baseline. They share a shape:
+16 of 144 cells favour Baseline. What they have in common:
 
-- 8/16 have touches that do not move payment at all (lift 0×), and 8 more have them at half strength.
-- 8/16 have no dead payment links, so there is nothing for reissue to repair.
-- 0/16 have replies at 0.5× the base rate.
-- 16/16 have a promise-kept probability of 0.25.
-- 8/16 have no over-contact penalty at all.
+- 16/16 have promise-kept probability at 0.25.
+- 8/16 have touches that do not move payment at all (lift 0×).
+- 8/16 have touches at half strength (lift 0.5×).
+- 8/16 have no dead payment links, so nothing for reissue to repair.
+- 8/16 have no over-contact penalty.
 - 8/16 have no owner-persona lift.
+- 0/16 have replies at 0.5× the base rate.
 
-Read plainly: Baaki earns its margin by repairing dead payment links, reading
-replies, and exercising restraint. Take those opportunities away — links that
-never expire, buyers who rarely reply, promises that mean nothing — and there
-is nothing left for the loop to buy. In that world the correct product is a
-fixed reminder schedule, and Baaki is overhead.
+**Necessary condition.** Every losing cell has promise-kept probability at 0.25. When a
+promise means nothing, the days spent honouring one are never repaid, and the
+single most valuable thing the loop does — believing a buyer and waiting —
+becomes its most expensive habit.
+
+That alone is not sufficient. It has to combine with the loop having nothing
+else to sell: either no payment link ever dies, so there is nothing for reissue
+to repair, or a touch does not move payment at all, in which case no outreach
+product of any kind has a mechanism.
+
+**What does not appear.** Not one losing cell has replies at 0.5× the base rate.
+Scarce replies were expected to be a losing condition and are not. Reading the
+few replies that do arrive still pays, because acting on them correctly costs
+nothing extra — the touch budget is spent either way.
+
+In the losing region the correct product is a fixed reminder schedule, and
+Baaki is overhead.
 
 <details>
 <summary>Full grid (144 cells)</summary>

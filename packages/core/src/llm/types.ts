@@ -23,6 +23,13 @@ export interface ToolDeclaration {
 export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
+  /**
+   * The provider's original part, replayed verbatim when this call is fed back
+   * as history. Gemini 3.x rejects a functionCall that comes back without the
+   * thoughtSignature it was issued with, so a reconstructed {name, args} is not
+   * good enough. Opaque on purpose: nothing outside the adapter reads it.
+   */
+  raw?: unknown;
 }
 
 export interface ToolTurn {

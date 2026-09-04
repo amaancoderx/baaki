@@ -18,7 +18,10 @@
     "sim:calibrate": "tsx packages/sim/src/calibrate.ts",
     "sim:diagnose": "tsx packages/sim/src/diagnose.ts",
     "build:packages": "tsc -b packages/core packages/sim packages/evals",
-    "evals:replies": "tsx packages/evals/src/reply-eval.ts"
+    "evals:replies": "tsx packages/evals/src/reply-eval.ts",
+    "evals:agentic": "tsx packages/evals/src/agentic-run.ts",
+    "webhook": "tsx apps/webhook/src/server.ts",
+    "tunnel": "cloudflared tunnel --url http://localhost:3001"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

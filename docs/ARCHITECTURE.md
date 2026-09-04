@@ -81,6 +81,40 @@ replied. A buyer who has ignored `silentTouchCap` messages goes to a human
 rather than getting another. All three came out of measurement — see
 `docs/FAILURES.md` §4 and `evals/report.md` §2b.
 
+## Case agent
+
+`packages/core/src/agent/`. One bounded episode per escalated case.
+
+- **Tools**: six write (`send_nudge`, `reissue_payment_path`, `schedule_wait`,
+  `open_dispute`, `escalate_to_human`, `stop`) and four read (`get_invoice`,
+  `get_buyer_history`, `get_touch_log`, `check_payment_status`).
+- **Budget**: 4 tool calls, exactly one write action, 20 seconds.
+- **One write** is enforced in the loop. Extra write calls are dropped and the
+  drop is recorded in the trace.
+- **Amounts are injected, never generated.** A draft naming a rupee figure that
+  is not the outstanding balance has it rewritten before the action is formed.
+- **Guard rejection** hands the violation text back verbatim for one retry, then
+  the case goes to a human.
+- **Every failure path ends at a human**: no tool call, budget spent on reads,
+  timeout, or an API error all produce `escalate_to_human` with the reason.
+
+The model never touches the ledger. It returns a tool call, which becomes an
+`Action`, which goes through the same `runGuards` and `execute` path as a
+fast-path decision. There is no privileged route.
+
+## Reply understanding
+
+`packages/core/src/understand.ts`. Free text in, `{intent, promiseDate,
+disputeReason, confidence}` out, under a response schema.
+
+Buttons never come through here — their payload carries the meaning exactly,
+which is most of why the ladder uses them. Roughly 30% of replies are buttons.
+
+`normaliseParse` enforces what the schema cannot: a `promise` with no date, a
+date already past, or a date beyond the campaign horizon is demoted to
+`will_pay`. Acting on any of those would freeze outreach for a date the buyer
+never gave.
+
 ## Audit
 
 Append-only. Nothing mutates or removes an entry. Each carries actor, action,

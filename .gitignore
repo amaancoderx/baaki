@@ -12,3 +12,6 @@ evals/out/
 sim-runs/
 apps/dashboard/data/snapshot.json
 .llm-cache/
+data/ledger.json
+data/policy.json
+data/contacts.json

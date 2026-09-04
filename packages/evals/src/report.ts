@@ -363,6 +363,32 @@ the simulator in \`packages/sim\`; nothing here is hand-entered.
 - **Net terms:** 25 days
 - **Policy version:** p3
 
+## 0. What is measured here, and what is not
+
+**Every number in this file comes from the deterministic path.** The arms below
+run the ledger, buyer memory, router, fast-path policy, guards and audit. No
+language model was called to produce them.
+
+That is a deliberate limit, not an oversight. Scoring the case agent across
+${SEEDS.length} seeds would mean roughly ${(coverage.escalated * SEEDS.length).toLocaleString()} live model calls at this scale;
+the collection figures are meant to be reproducible by anyone with the repo and
+no API key.
+
+Two consequences worth stating plainly:
+
+- The router escalated **${coverage.escalated.toLocaleString()} decisions** to the case agent across these runs.
+  In *this* file they fell through to the rules. The agent exists, is bounded and
+  is tested — see \`evals/agentic-run.md\` for a run with the model in the loop
+  end to end, and \`packages/core/src/agent/agent.test.ts\` for the bounds.
+- Free-text replies here reach the ledger with the intent the simulator sampled,
+  not a parsed one. **${coverage.freeText.toLocaleString()} of ${(coverage.freeText + coverage.button).toLocaleString()} replies were free text** (${((coverage.freeText / Math.max(1, coverage.freeText + coverage.button)) * 100).toFixed(0)}%), so the
+  arms below give Baaki perfect comprehension for free. Real parse accuracy is in
+  \`evals/replies.md\`, and its failure modes are not free: hearing a promise that
+  was never made freezes outreach until a date the buyer never gave.
+
+Read the collection numbers as *what the guarded rules layer is worth*. The
+model's contribution is measured separately and is not folded in.
+
 ## 1. Arms
 
 **Baseline** sends fixed reminders at due, +7 and +14 on one channel and ignores

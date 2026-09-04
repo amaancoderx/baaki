@@ -209,7 +209,9 @@ export function gemini(opts: GeminiOptions): Llm {
       .filter((p) => p.functionCall)
       .map((p) => {
         const fc = p.functionCall as { name: string; args?: Record<string, unknown> };
-        return { name: fc.name, args: fc.args ?? {} };
+        // Keep the whole part: it carries the thoughtSignature that must come
+        // back with it, and the model rejects the call without it.
+        return { name: fc.name, args: fc.args ?? {}, raw: p };
       });
   }
 
@@ -244,7 +246,8 @@ export function gemini(opts: GeminiOptions): Llm {
     async tools(req: ToolRequest): Promise<ToolTurn> {
       const contents: Record<string, unknown>[] = [{ role: "user", parts: [{ text: req.prompt }] }];
       for (const h of req.history ?? []) {
-        contents.push({ role: "model", parts: [{ functionCall: { name: h.call.name, args: h.call.args } }] });
+        const modelPart = h.call.raw ?? { functionCall: { name: h.call.name, args: h.call.args } };
+        contents.push({ role: "model", parts: [modelPart] });
         contents.push({
           role: "user",
           parts: [{ functionResponse: { name: h.call.name, response: { result: h.result } } }],

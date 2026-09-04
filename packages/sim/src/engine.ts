@@ -52,6 +52,24 @@ export interface SimOptions {
    * holds every lifecycle stage at once, which is what a live ledger looks like.
    */
   issueSpreadDays?: number;
+  /**
+   * Parses free-text replies. When absent the ledger is handed the intent the
+   * rules sampled, which gives the agent perfect comprehension for free and
+   * measures a system nobody could build. When present, only the parse reaches
+   * the ledger; the sampled truth is kept for scoring.
+   */
+  replyParser?: (text: string, ctx: {
+    today: CivilDate; buyerName: string; invoiceId: string; lastTouchBody?: string;
+  }) => Promise<{ intent: ReplyIntent; promiseDate?: CivilDate; disputeReason?: string; confidence: number }>;
+}
+
+export interface ParseAudit {
+  invoiceId: string;
+  text: string;
+  truth: { intent: string; promiseDate?: string };
+  parsed: { intent: string; promiseDate?: string; confidence: number };
+  intentOk: boolean;
+  dateOk: boolean | null;
 }
 
 export interface PersonaOverrides {
@@ -95,6 +113,10 @@ export interface SimResult {
   ledger: Ledger;
   /** Ordered log of every simulated day, for the invariant suite. */
   events: SimEvent[];
+  /** Every free-text reply the parser read, with the sampled truth beside it. */
+  parses: ParseAudit[];
+  /** Router split, counted as the run happened rather than reconstructed after. */
+  routing: { fast: number; slow: number; reasons: Record<string, number> };
 }
 
 export interface SimEvent {
@@ -211,6 +233,8 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
   const states = new Map<string, BuyerSimState>();
   const personaOf = new Map<string, Persona>();
   const streams = new Map<string, BuyerStreams>();
+  const parses: ParseAudit[] = [];
+  const routing = { fast: 0, slow: 0, reasons: {} as Record<string, number> };
   const events: SimEvent[] = [];
 
   // -- seed the ledger ------------------------------------------------------
@@ -277,6 +301,12 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
         decision = baselineDecide(c);
       } else {
         const r = route(c);
+        if (r.route === "slow") {
+          routing.slow += 1;
+          routing.reasons[r.reason] = (routing.reasons[r.reason] ?? 0) + 1;
+        } else {
+          routing.fast += 1;
+        }
         if (r.route === "slow" && opts.slowDecider) {
           decision = await opts.slowDecider(c);
         } else {
@@ -330,19 +360,54 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
         // Buttons carry their meaning exactly; free text has to be read.
         const viaButton = draw.intent === "promise" || draw.intent === "dispute" ? sb.text.bool(0.35) : sb.text.bool(0.2);
 
+        // What the ledger is told. For a button that is the payload; for free
+        // text it is whatever the parser made of it, right or wrong.
+        let heard: { intent: ReplyIntent; promiseDate?: CivilDate; disputeReason?: string; confidence: number } = {
+          intent: draw.intent as ReplyIntent,
+          promiseDate: draw.promiseDate,
+          disputeReason: draw.disputeReason,
+          confidence: viaButton ? 1 : 0.85,
+        };
+
+        if (!viaButton && opts.replyParser) {
+          const lastTouch = ledger.touchesFor(inv.id).at(-1);
+          try {
+            const parsed = await opts.replyParser(text, {
+              today, buyerName: ledger.buyer(inv.buyerId).name, invoiceId: inv.id,
+              ...(lastTouch ? { lastTouchBody: lastTouch.body } : {}),
+            });
+            heard = parsed;
+            parses.push({
+              invoiceId: inv.id, text,
+              truth: { intent: draw.intent, promiseDate: draw.promiseDate },
+              parsed: { intent: parsed.intent, promiseDate: parsed.promiseDate, confidence: parsed.confidence },
+              intentOk: parsed.intent === draw.intent,
+              dateOk: draw.intent === "promise"
+                ? (parsed.promiseDate ?? null) === (draw.promiseDate ?? null)
+                : null,
+            });
+          } catch {
+            // A parser that fails must not silently fall back to ground truth:
+            // that would hand the agent comprehension it did not earn.
+            heard = { intent: "unclear", confidence: 0 };
+          }
+        }
+
         ledger.recordReply({
           invoiceId: inv.id, buyerId: inv.buyerId, ts: replyAt,
           channel: "whatsapp",
           source: viaButton ? "button" : "free_text",
           text,
-          intent: draw.intent as ReplyIntent,
-          promiseDate: draw.promiseDate,
-          disputeReason: draw.disputeReason,
-          confidence: viaButton ? 1 : 0.85,
+          intent: heard.intent,
+          promiseDate: heard.promiseDate,
+          disputeReason: heard.disputeReason,
+          confidence: heard.confidence,
         });
 
-        events.push({ day, date: today, kind: "reply", invoiceId: inv.id, detail: { intent: draw.intent } });
+        events.push({ day, date: today, kind: "reply", invoiceId: inv.id, detail: { intent: heard.intent, truth: draw.intent } });
 
+        // Buyer behaviour follows the buyer's real intent. A misread reply
+        // changes what the merchant believes, never what the buyer does.
         if (draw.intent === "promise" && draw.promiseDate) {
           const persona = personaOf.get(inv.buyerId)!;
           const keeps = sb.reply.bool(persona.promise_keep_prob);
@@ -427,6 +492,8 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
     byPersona: summarise(ledger, states, personaOf, paidOn, events, opts, "persona"),
     ledger,
     events,
+    parses,
+    routing,
   };
 
   // -- helpers --------------------------------------------------------------
