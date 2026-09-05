@@ -58,12 +58,15 @@ function buildTimeline(i: Inv): { events: Ev[]; nextOn: string | null } {
       evs.push({ ...base, kind: "send", title: ch.length ? `Invoice sent · ${ch.join(" + ")}` : "Invoice could not be sent", body: a.rationale });
     } else if (a.action === "none" && p.confirmation === "promise") {
       evs.push({ ...base, kind: "send", title: "Promise confirmed in writing · WhatsApp", body: a.rationale });
+    } else if (a.action === "none" && p.callOutcome) {
+      const answered = p.callOutcome === "completed" && Number(p.durationSeconds ?? 0) > 0;
+      evs.push({ ...base, kind: "call", title: answered ? `Call answered · ${p.durationSeconds}s` : "Call went unanswered", body: a.rationale, meta: "reported by Twilio" });
     } else if (a.action === "none" && p.intent) {
       // the reply itself renders from i.replies; skip the bookkeeping twin
     } else if (a.action === "none" || a.action === "schedule_wait") {
       evs.push({ ...base, kind: "wait", title: "AI decided to wait", body: a.rationale });
     } else if (a.action === "place_call") {
-      evs.push({ ...base, kind: "call", title: p.failed ? "Call could not be placed" : "AI called the buyer", body: a.rationale, meta: typeof p.callSid === "string" ? `call ${String(p.callSid).slice(0, 18)}` : undefined });
+      evs.push({ ...base, kind: "call", title: p.failed ? "Call could not be placed" : "AI called the buyer", body: `Reason: ${a.rationale}`, meta: typeof p.callSid === "string" ? `call ${String(p.callSid).slice(0, 18)}` : undefined });
     } else if (a.action === "reissue_payment_path") {
       evs.push({ ...base, kind: "decision", title: p.failed ? "Could not refresh the payment link" : "Fresh payment link issued", body: a.rationale });
     } else if (a.action === "escalate_to_human") {

@@ -52,6 +52,10 @@ function describe(a: { action: string; actor: string; params: Record<string, unk
     case "place_call": return p.failed ? "Call could not be placed" : "Called the buyer";
     case "stop": return p.substate === "paid" ? "Paid in full, case closed" : "Case closed";
     case "none":
+      if (p.callOutcome) {
+        return p.callOutcome === "completed" && Number(p.durationSeconds ?? 0) > 0
+          ? `Call answered, ${p.durationSeconds}s` : "Call went unanswered";
+      }
       if (p.confirmation === "promise") return "Promise confirmed in writing";
       if ("amount" in p) return "Invoice raised";
       if (p.intent) return "Reply read";

@@ -82,6 +82,11 @@ export function twilioCaller(origin: string): VoiceCaller | undefined {
         Url: `${origin}/api/voice/answer?invoice=${encodeURIComponent(invoiceId)}`,
         Record: "true",
         Timeout: "30",
+        // Twilio reports how the call ended, so the trail can say "answered,
+        // 40 seconds" or "went unanswered" from the provider's record instead
+        // of saying nothing.
+        StatusCallback: `${origin}/api/voice/status`,
+        StatusCallbackEvent: "completed",
       });
       const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`, {
         method: "POST",
