@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Journey } from "@/components/Journey";
 import { notFound } from "next/navigation";
 import { readState } from "@/lib/server";
 import type { AppState, LiveInvoice } from "@/lib/api";
@@ -21,125 +22,9 @@ const SUBSTATE: Record<string, { label: string; cls: string; note: string }> = {
  * a payment landing and a buyer writing back, and naming the subsystem told
  * nobody anything: a promise being recorded was labelled "Razorpay / WhatsApp".
  */
-const ACTOR: Record<string, string> = {
-  fast: "Rule", agent: "Baaki AI", human: "You", webhook: "From the buyer",
-};
-
-/**
- * What happened, in the words a merchant would use.
- *
- * The stored shape is (actor, action), which produced titles like "You: noted"
- * for raising an invoice and "Razorpay / WhatsApp: waited" for a promise
- * freezing outreach. Both are accurate and neither means anything on a screen.
- */
-function describe(a: { action: string; actor: string; params: Record<string, unknown> }): string {
-  const p = a.params;
-  if (Array.isArray(p.refusedBy) && p.refusedBy.length) {
-    return `Blocked by ${(p.refusedBy as string[]).map((g) => g.replace(/_/g, " ")).join(", ")}`;
-  }
-  switch (a.action) {
-    case "deliver_invoice": {
-      const ch = Array.isArray(p.channels) ? (p.channels as string[]) : [];
-      const nice = ch.map((c) => (c === "whatsapp" ? "WhatsApp" : c === "email" ? "email" : c));
-      return nice.length ? `Invoice sent to the buyer on ${nice.join(" and ")}` : "Invoice could not be sent";
-    }
-    case "reissue_payment_path":
-      return p.failed ? "Could not issue a new payment link" : "New payment link issued";
-    case "schedule_wait":
-      return a.actor === "webhook" ? "Promise recorded, outreach frozen" : "Waiting on a promise";
-    case "open_dispute": return "Dispute opened, outreach stopped";
-    case "escalate_to_human": return "Handed to you";
-    case "place_call": return p.failed ? "Call could not be placed" : "Called the buyer";
-    case "stop": return p.substate === "paid" ? "Paid in full, case closed" : "Case closed";
-    case "none":
-      if (p.callOutcome) {
-        return p.callOutcome === "completed" && Number(p.durationSeconds ?? 0) > 0
-          ? `Call answered, ${p.durationSeconds}s` : "Call went unanswered";
-      }
-      if (p.confirmation === "promise") return "Promise confirmed in writing";
-      if ("amount" in p) return "Invoice raised";
-      if (p.intent) return "Reply read";
-      return "Nothing to do";
-    default: return a.action.replace(/_/g, " ");
-  }
-}
-
 function Timeline({ i }: { i: LiveInvoice }) {
-  type Ev = { ts: number; kind: string; title: string; who?: string; body?: string; meta?: string; evidence?: string[]; quiet?: boolean };
-  const events: Ev[] = [
-    ...i.touches.map((t) => ({
-      ts: t.ts, kind: "touch",
-      title: `Message sent ${t.persona === "owner" ? "from the owner" : "from accounts"} · ${t.rung.replace(/_/g, " ")}`,
-      body: t.body,
-      meta: t.carriedLiveLink ? "payment link was live" : "payment link had expired",
-      evidence: [t.id],
-    })),
-    ...i.replies.map((r) => ({
-      ts: r.ts, kind: "reply",
-      title: `Buyer replied · ${r.source === "button" ? "tapped a button" : "wrote a message"}`,
-      body: r.text,
-      meta: `Read as ${r.intent.replace(/_/g, " ")}${r.promiseDate ? `, ${r.promiseDate}` : ""} · confidence ${r.confidence.toFixed(2)}`,
-      evidence: [r.id],
-    })),
-    ...i.payments.map((p) => ({
-      ts: p.ts, kind: "payment",
-      title: `Payment received · ${formatINR(p.amount)}`,
-      meta: "confirmed by a Razorpay webhook",
-      evidence: [p.evidence],
-    })),
-    ...i.audit.filter((a) => a.action !== "send_nudge").map((a) => ({
-      ts: a.ts, kind: "decision",
-      title: describe(a),
-      who: ACTOR[a.actor] ?? a.actor,
-      body: a.rationale,
-      meta: a.guards.length ? `${a.guards.filter((g) => g.pass).length} of ${a.guards.length} guards passed` : undefined,
-      evidence: a.evidence,
-      quiet: a.action === "none" && !("amount" in a.params) && !a.params.confirmation && !a.params.intent,
-    })),
-  ].sort((a, b) => a.ts - b.ts);
-
-  // Most days the right move is to wait, and a page that prints every one of
-  // those days buries the days something happened. Consecutive no-ops collapse
-  // into a single line that still says how many there were.
-  const rolled: (Ev & { runs?: number })[] = [];
-  for (const e of events) {
-    const prev = rolled[rolled.length - 1];
-    if (e.quiet && prev?.quiet) {
-      prev.runs = (prev.runs ?? 1) + 1;
-      prev.ts = e.ts;
-      prev.body = e.body;
-      continue;
-    }
-    rolled.push({ ...e });
-  }
-
-  return (
-    <div className="timeline">
-      {rolled.map((e, n) => (
-        <div className="tl-item" key={n}>
-          <span className={`tl-dot ${e.kind}`} />
-          <div>
-            <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>
-                {e.runs && e.runs > 1 ? `Checked ${e.runs} days, nothing to do` : e.title}
-              </span>
-              {e.who && <span className="chip chip-neutral">{e.who}</span>}
-              <span className="num" style={{ fontSize: 11, color: "var(--text-4)", marginLeft: "auto" }}>{formatTs(e.ts)}</span>
-            </div>
-            {e.body && (
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.55, borderLeft: "2px solid var(--hairline)", paddingLeft: 10 }}>
-                {e.body}
-              </p>
-            )}
-            <div style={{ display: "flex", gap: 8, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
-              {e.meta && <span style={{ fontSize: 11, color: "var(--text-4)" }}>{e.meta}</span>}
-              {e.evidence?.map((ev) => <span key={ev} className="evidence">{ev}</span>)}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  // Same eyes as the demo screen: one ledger, one way of reading it.
+  return <Journey inv={i} />;
 }
 
 export default async function LiveCasePage({ params }: { params: Promise<{ id: string }> }) {
