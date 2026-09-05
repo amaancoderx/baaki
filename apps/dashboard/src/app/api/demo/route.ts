@@ -34,6 +34,36 @@ function jumpTo(target: CivilDate, after: number, holidays: string): number {
 export async function GET() {
   const off = await demoOffset();
   const p = await policy();
+
+  // The demo screen polls this every few seconds, so it doubles as payment
+  // reconciliation: ask Razorpay directly whether the demo buyer's open
+  // invoices got paid, rather than waiting on webhook delivery timing that
+  // this test account has proven casual about. Still only the provider's
+  // word moves money; this just fetches the word instead of waiting for it.
+  try {
+    const st = store();
+    const ledger0 = await st.load(p);
+    const open = ledger0.openInvoices().filter((i) => i.buyerId === "c_live_demo");
+    if (open.length > 0 && process.env.RAZORPAY_KEY_ID) {
+      const auth = "Basic " + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
+      for (const inv of open.slice(0, 3)) {
+        const rid = ledger0.external(inv.id)?.razorpayInvoiceId;
+        if (!rid) continue;
+        const r = await fetch(`https://api.razorpay.com/v1/invoices/${rid}`, { headers: { Authorization: auth } })
+          .then((x) => x.json()).catch(() => null) as { status?: string; amount_paid?: number; payment_id?: string } | null;
+        if (r && (r.amount_paid ?? 0) > 0 && inv.amountPaid < (r.amount_paid ?? 0)) {
+          await st.update((l) => {
+            l.recordPayment({
+              invoiceId: inv.id, ts: Date.now() + off,
+              amount: (r.amount_paid ?? 0) - inv.amountPaid,
+              evidence: r.payment_id ?? rid,
+            });
+            return null;
+          }, p);
+        }
+      }
+    }
+  } catch { /* reconciliation is best-effort; the webhook remains the main path */ }
   const simNow = Date.now() + off;
   const ledger = await store().load(p);
   const today = istParts(simNow).date;

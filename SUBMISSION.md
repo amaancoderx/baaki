@@ -20,7 +20,7 @@ https://github.com/amaancoderx/baaki
 
 ## 5-min Pitch Video Link
 
-(paste your video link here)
+https://youtu.be/Pfg7jszBXTA
 
 Live app: https://baaki-ai.vercel.app
 
