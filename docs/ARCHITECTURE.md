@@ -19,7 +19,7 @@ ends in exactly one action and one audit entry.
 | `packages/core` | ledger, memory, guards, router, fast-path policy, drafts, executor, audit |
 | `packages/sim` | personas, hazard engine, RNG streams, reply renderer, snapshot generator |
 | `packages/evals` | invariant suite over full runs, report generator, statistics |
-| `apps/dashboard` | Next.js, Today and Case |
+| `apps/dashboard` | Next.js: Invoices, New invoice, Demo run |
 
 ## Ledger
 

@@ -45,6 +45,10 @@ const WHAT: Record<string, string> = {
 export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; state: AppState; compressed: boolean }) {
   const sendable = contacts.filter((c) => c.sendable);
   const [contactId, setContactId] = useState(sendable[0]?.id ?? contacts[0]?.id ?? "");
+  const [own, setOwn] = useState(sendable.length > 0);
+  const [ownName, setOwnName] = useState(sendable[0]?.name ?? "Sharma Traders");
+  const [ownPhone, setOwnPhone] = useState(sendable[0]?.phone ?? "");
+  const [ownEmail, setOwnEmail] = useState(sendable[0]?.email ?? "");
   const [amount, setAmount] = useState(180000);
   const [termDays, setTermDays] = useState(15);
   const [issuedDaysAgo, setIssuedDaysAgo] = useState(0);
@@ -91,10 +95,29 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
   async function create() {
     setBusy("create"); setErr(null);
     try {
+      let id = contactId;
+      // A real number and inbox, so the WhatsApp and the call land somewhere
+      // someone is holding. The synthetic book is fine for showing the ledger
+      // and useless for showing a message arrive.
+      if (own) {
+        if (!ownPhone.replace(/\D/g, "")) throw new Error("a phone number is needed for the WhatsApp and the call");
+        const cr = await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: "c_live_demo", name: ownName || "Demo Buyer",
+            phone: ownPhone, email: ownEmail || undefined,
+            city: "Ludhiana", termDays, language: "hinglish", sendable: true,
+          }),
+        });
+        const cj = await cr.json();
+        if (!cr.ok) throw new Error(cj.error ?? "could not save the buyer");
+        id = cj.contact.id;
+      }
       const r = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId, amountRupees: amount, termDays, issuedDaysAgo }),
+        body: JSON.stringify({ contactId: id, amountRupees: amount, termDays, issuedDaysAgo }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "could not create the invoice");
@@ -201,16 +224,46 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
         <div className="panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="overline">Step 1 · Raise the invoice</div>
           <p className="explain-inline">
-            Contacts marked WhatsApp ready receive real messages. Pick one of those if you
-            want to see the sends land on a phone.
+            Put in a number and an inbox you are holding. The WhatsApp and the call go
+            there for real, so this is the difference between watching a ledger move and
+            watching a message arrive.
           </p>
-          <select className="input" value={contactId} onChange={(e) => setContactId(e.target.value)}>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.city}{c.sendable ? " · WhatsApp ready" : ""}{c.email ? " · has email" : " · no email"}
-              </option>
-            ))}
-          </select>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className={`chip ${own ? "chip-accent" : "chip-neutral"}`} style={{ cursor: "pointer", border: "none" }} onClick={() => setOwn(true)}>
+              Type a buyer in
+            </button>
+            <button className={`chip ${!own ? "chip-accent" : "chip-neutral"}`} style={{ cursor: "pointer", border: "none" }} onClick={() => setOwn(false)}>
+              Pick from the sample book
+            </button>
+          </div>
+
+          {own ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span className="overline">Trader name</span>
+                <input className="input" value={ownName} onChange={(e) => setOwnName(e.target.value)} placeholder="Sharma Traders" />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span className="overline">Phone (with country code)</span>
+                <input className="input" value={ownPhone} onChange={(e) => setOwnPhone(e.target.value)} placeholder="919000000000" />
+                <span className="hint">WhatsApp and the call go here</span>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span className="overline">Email</span>
+                <input className="input" value={ownEmail} onChange={(e) => setOwnEmail(e.target.value)} placeholder="accounts@example.com" />
+                <span className="hint">Razorpay sends the invoice here</span>
+              </label>
+            </div>
+          ) : (
+            <select className="input" value={contactId} onChange={(e) => setContactId(e.target.value)}>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.city}{c.sendable ? " · WhatsApp ready" : ""}{c.email ? " · has email" : " · no email"}
+                </option>
+              ))}
+            </select>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span className="overline">Amount (rupees)</span>
@@ -227,7 +280,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
             </label>
           </div>
           <div>
-            <button className="btn btn-primary" onClick={create} disabled={busy !== null || !contactId}>
+            <button className="btn btn-primary" onClick={create} disabled={busy !== null || (!own && !contactId)}>
               {busy === "create" ? <><span className="spinner" /> Raising</> : "Raise the invoice and deliver it"}
             </button>
           </div>
@@ -240,7 +293,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
           <div className="panel">
             <div className="overline" style={{ marginBottom: 8 }}>Step 1 · Delivered</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <strong style={{ fontSize: 15 }}>{contact?.name}</strong>
+              <strong style={{ fontSize: 15 }}>{own ? ownName : contact?.name}</strong>
               <span className="num">{formatINR(created.invoice.amount)}</span>
               <span style={{ fontSize: 13, color: "var(--text-3)" }}>due {created.invoice.dueOn}</span>
               <Link href={`/live/${created.invoice.id}`} className="mono" style={{ color: "var(--text-4)" }}>
@@ -344,7 +397,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
                 <p className="explain-inline" style={{ marginTop: 6 }}>
                   Razorpay said so, not this page. Event <span className="evidence">{paid.evidence}</span>,
                   and the case closed itself.{" "}
-                  <Link href="/audit" style={{ color: "var(--accent-deep)" }}>See it in the audit trail</Link>.
+                  <Link href={`/live/${created.invoice.id}`} style={{ color: "var(--accent-deep)" }}>See the full trail</Link>.
                 </p>
               </>
             ) : (

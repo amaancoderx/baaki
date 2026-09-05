@@ -169,7 +169,13 @@ export class Baaki {
     const issuedOn = addDays(today, -(input.issuedDaysAgo ?? 0));
     const dueOn = addDays(issuedOn, input.termDays);
     const linkValidDays = input.linkValidDays ?? input.termDays + 7;
-    const expireBy = Math.floor(Date.parse(`${addDays(today, linkValidDays)}T18:00:00+05:30`) / 1000);
+    // The ledger keeps the civil expiry date it computed, which may well be in
+    // the past: that is how an already-overdue book arrives, and a dead link is
+    // the condition reissue exists to repair. Razorpay refuses to mint a link
+    // that has already expired, so what it is asked for is floored at a real
+    // near-future time. The two disagree on purpose.
+    const wantedExpiry = Date.parse(`${addDays(today, linkValidDays)}T18:00:00+05:30`);
+    const expireBy = Math.floor(Math.max(wantedExpiry, Date.now() + 30 * 60_000) / 1000);
 
     let rzp: CreatedInvoice["razorpay"];
     let emailSent = false;
@@ -275,6 +281,10 @@ export class Baaki {
       ledger.addInvoice(invoice);
       ledger.noteExternal(invoice.id, {
         razorpayCustomerId: rzp?.customerId,
+        // Both, because the primary path is an invoice and reissue mints a
+        // payment link. Dropping the invoice id meant an invoice.paid webhook
+        // matched nothing and the money never reached the case.
+        razorpayInvoiceId: rzp?.invoiceId,
         razorpayPaymentLinkId: rzp?.paymentLinkId,
         shortUrl: rzp?.shortUrl,
         virtualAccountId: rzp?.virtualAccount?.id,
@@ -370,7 +380,9 @@ export class Baaki {
       ledger.audit.append({
         ts: this.cfg.clock.now(),
         invoiceId: invoice.id,
-        actor: "human",
+        // Baaki sends it, not the merchant. The merchant raised the invoice;
+        // the entry above this one is theirs.
+        actor: "agent",
         action: "deliver_invoice",
         params: { channels, template: d.whatsappTemplate, ...(d.skipped ? { skipped: d.skipped } : {}) },
         rationale: d.skipped
@@ -524,8 +536,11 @@ export class Baaki {
     switch (a.kind) {
       case "none":
         // A no-op is still a decision, and it is the one most in need of a
-        // review date: it is what holds a quiet case quiet.
-        if (decision.nextReviewAt) {
+        // review date: it is what holds a quiet case quiet. But only when it
+        // says something new. Re-recording an unchanged review date once a day
+        // turned a six-week case into sixty near-identical rows and buried the
+        // days that mattered.
+        if (decision.nextReviewAt && decision.nextReviewAt !== c.nextReviewOn) {
           ledger.audit.append({
             ts: now, invoiceId, actor: decision.actor, action: "none",
             params: { reason: a.reason, ...review }, rationale: decision.rationale,
@@ -535,16 +550,23 @@ export class Baaki {
         return undefined;
 
       case "schedule_wait":
-        ledger.audit.append({
-          ts: now, invoiceId, actor: decision.actor, action: "schedule_wait",
-          params: { until: a.until, reason: a.reason, ...review }, rationale: decision.rationale,
-          guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [invoiceId],
-        });
+        // Only when the date moves. Re-recording the same promise every day
+        // says nothing and hides the day it was made.
+        if (decision.nextReviewAt !== c.nextReviewOn) {
+          ledger.audit.append({
+            ts: now, invoiceId, actor: decision.actor, action: "schedule_wait",
+            params: { until: a.until, reason: a.reason, ...review }, rationale: decision.rationale,
+            guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [invoiceId],
+          });
+        }
         return undefined;
 
       case "open_dispute":
-        ledger.setSubstate(invoiceId, "disputed", decision.rationale,
-          decision.actor === "agent" ? "agent" : "fast", [invoiceId], { disputeReason: a.reason, ...review });
+        // A dispute is opened once. Re-opening an open one is not an event.
+        if (c.invoice.substate !== "disputed") {
+          ledger.setSubstate(invoiceId, "disputed", decision.rationale,
+            decision.actor === "agent" ? "agent" : "fast", [invoiceId], { disputeReason: a.reason, ...review });
+        }
         return undefined;
 
       case "escalate_to_human":
@@ -651,16 +673,25 @@ export class Baaki {
     if (this.cfg.razorpay) {
       let link: { id: string; short_url: string };
       try {
-        link = await this.cfg.razorpay.createPaymentLink({
-          amount: c.invoice.amount - c.invoice.amountPaid,
-          description: `Invoice ${c.invoice.id} (reissued)`,
-          customer: {
+        // A fresh Razorpay Invoice, matching how the original was issued.
+        // Payment links were the old path here and are capped far lower, so a
+        // book of any size ran out of them and every reissue after that failed:
+        // the one repair that the ablation says most of the margin comes from.
+        const customerId = ledger.external(invoiceId)?.razorpayCustomerId
+          ?? (await this.cfg.razorpay.createCustomer({
             name: c.buyer.name,
             contact: `+${c.buyer.phone}`,
             ...(c.buyer.email ? { email: c.buyer.email } : {}),
-          },
-          expireBy: Math.floor(Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`) / 1000),
-          referenceId: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
+          })).id;
+        link = await this.cfg.razorpay.createInvoice({
+          customerId,
+          amount: c.invoice.amount - c.invoice.amountPaid,
+          description: `Invoice ${c.invoice.id} (reissued)`,
+          receipt: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
+          expireBy: Math.floor(Math.max(
+            Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`),
+            Date.now() + 30 * 60_000,
+          ) / 1000),
           notify: { email, sms: false },
         });
       } catch (e) {
@@ -680,7 +711,7 @@ export class Baaki {
       }
       const inv = ledger.invoice(invoiceId);
       inv.linkExpiresOn = addDays(today, validDays);
-      ledger.noteExternal(invoiceId, { razorpayPaymentLinkId: link.id, shortUrl: link.short_url });
+      ledger.noteExternal(invoiceId, { razorpayInvoiceId: link.id, shortUrl: link.short_url });
       ledger.audit.append({
         ts: now, invoiceId, actor: "agent", action: "reissue_payment_path",
         params: { paymentLinkId: link.id, shortUrl: link.short_url, expireBy: inv.linkExpiresOn, emailed: email },

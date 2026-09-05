@@ -15,16 +15,17 @@ reminder schedule. Full method and per-seed numbers in
 
 | Metric | Baseline (fixed reminders) | Baaki | Delta |
 | --- | --- | --- | --- |
-| Collected at horizon (% of billed) | 84.3 ± 1.3% | 86.4 ± 1.4% | **+2.1pp** |
-| Collected by day 60 | 66.9 ± 1.9% | 70.3 ± 2.9% | +3.4pp |
-| Collected by day 30 | 30.3 ± 1.6% | 28.9 ± 1.7% | **−1.5pp** |
-| DSO (days, issue to settlement) | 53.8 ± 1.7 | 53.7 ± 1.8 | −0.0 |
-| Touches per ₹1L collected | 1.25 ± 0.04 | 1.30 ± 0.05 | **+0.05** |
+| Collected at horizon (% of billed) | 84.0 ± 1.9% | 86.1 ± 1.4% | **+2.1pp** |
+| Unpaid at horizon | 18.9 ± 1.9% | 16.4 ± 1.1% | **−2.5pp** |
+| Collected by day 60 | 66.4 ± 2.4% | 69.5 ± 2.7% | +3.1pp |
+| Collected by day 30 | 30.5 ± 1.8% | 28.6 ± 1.6% | **−1.9pp** |
+| DSO (days, issue to settlement) | 54.1 ± 1.9 | 54.3 ± 1.5 | +0.2 |
+| Touches per ₹1L collected | 1.25 ± 0.06 | 1.29 ± 0.05 | **+0.05** |
 | Complaints | 0.0 | 0.0 | = |
 | Do-not-contact events | 0.0 | 0.0 | = |
 | **Guard violations** | 0 | **0** | = |
 
-**Headline: +2.13pp collected, 95% CI [0.81, 3.45], winning 8 of 10 seeds.**
+**Headline: +2.12pp collected, 95% CI [0.51, 3.73], winning 9 of 10 seeds.**
 
 Three things in that table are worth reading before the good number:
 
@@ -82,6 +83,31 @@ window, holidays, touch budget, promise or dispute in flight, do-not-contact,
 campaign end. **Guards run at execution time, not proposal time**: a decision
 made at 17:58 that arrives at 18:01 does not go out.
 
+### Which channel, and when
+
+| | |
+| --- | --- |
+| **Issue** | Razorpay emails the invoice and the WhatsApp goes at the same moment. Delivering the bill is not a reminder, so it does not spend the touch budget. |
+| **Chase** | WhatsApp only. It is where replies come from, and replies are what the whole loop runs on. Email follow-ups get filtered; SMS cannot hold a conversation. |
+| **Call** | Only when messages have stopped returning information: a buyer silent past a threshold, or a promise passing with nothing said. WhatsApp is the cheap probe, so the expensive one runs only once the cheap one comes back empty. |
+| **Close** | The last rung goes out on both channels, as a fresh link Razorpay emails and a WhatsApp carrying the same link. |
+
+Voice has its own guards rather than inheriting the message ones: a narrower
+window, because a WhatsApp at nine in the evening is rude and a phone call at
+nine in the evening is a different category of offence, and one call for the
+life of the invoice. A date agreed out loud is confirmed in writing straight
+away with a live link, since a promise nobody can look up is the least durable
+thing in the system.
+
+Calling is decided by a rule and not by the model. It is the most intrusive and
+least reviewable thing here, and a rule that fires it can be audited in a way a
+model choosing to cannot.
+
+**Voice is off in the measured policy.** The simulator models messages moving a
+payment hazard and has no representation of a conversation, so a policy that
+placed calls inside it would be measuring a fiction. Every collection figure
+above describes the message-only policy.
+
 More in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Every policy knob and
 where its value came from is in [`docs/POLICY.md`](docs/POLICY.md).
 
@@ -138,7 +164,7 @@ fixtures. The test names are the stopping rules:
 ✓ records a guard verdict on every touch it logged
 ```
 
-56 tests, all passing. One of them caught a real compliance bug: an inbound
+106 tests, all passing. One of them caught a real compliance bug: an inbound
 promise was silently un-escalating a case a human already owned
 ([`docs/FAILURES.md`](docs/FAILURES.md) §3).
 
@@ -148,7 +174,7 @@ Nothing runs on a developer machine.
 
 | | |
 | --- | --- |
-| Dashboard, API, webhooks | `https://baaki-llcadaxongmailcoms-projects.vercel.app` |
+| Dashboard, API, webhooks | **https://baaki-ai.vercel.app** |
 | Voice bridge | `https://baaki-voice.fly.dev` |
 | Ledger, policy, contacts | Upstash Redis |
 
@@ -164,7 +190,13 @@ Verified end to end against a real Indian mobile:
   `promise still in flight` and sent nothing.
 - **Voice**: a real call in Hindi. *"agle hafte Tuesday"* became a promise for
   2026-09-15, next week's Tuesday rather than this week's, then she said goodbye and
-  hung up.
+  hung up. The promise went straight into the ledger and froze outreach.
+
+`/demo` runs the whole arc on a compressed calendar: raise an invoice against a
+number and inbox you are holding, then skip a day at a time and watch the email,
+the WhatsApp and the call actually go out, ending on a real payment that closes
+the case through the webhook. The only thing simulated is the date. The guards
+see the moved clock rather than being switched off, and the screen says so.
 
 Deployment, and why the voice bridge lives on a different host, is in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
@@ -183,8 +215,11 @@ pnpm evals:replies     # reply understanding, scored and cached
 pnpm evals:agentic     # small run with the model in the loop end to end
 
 pnpm snapshot          # freeze a run for the dashboard
-pnpm dev               # Today and Case at localhost:3000
+pnpm dev               # dashboard at localhost:3000
 ```
+
+Three screens: **Invoices** (the book, and the full trail inside each one),
+**New invoice**, and **Demo run**.
 
 ## Why the simulator is worth anything
 
@@ -212,12 +247,16 @@ together with the region where it loses.
 that made the worst-paying persona the second-best. A headline effect that shrank
 from +2.8pp to +0.6pp when the sample grew. An entire agent layer that was wired
 but never called. Twilio silently dropping the query string from a stream URL,
-reported as a transport error. And Vercel Functions opening an outbound WebSocket
+reported as a transport error. Vercel Functions opening an outbound WebSocket
 that never delivers a frame, which is why the voice bridge runs somewhere else.
+And a Gemini Live model alias that resolved to different backends between
+sessions, so the same code and the same audio would hold a conversation on one
+call and go silent on the next.
 
 ## What is not built
 
-[`docs/STRETCH.md`](docs/STRETCH.md) lists them, one line each. The WhatsApp channel and
-the Razorpay adapter are the next two, and the 60 merchant-written replies plan
-§7 asks for are the missing evidence. Nothing in this repository is a stub: a
-feature that is not finished does not exist in code.
+[`docs/STRETCH.md`](docs/STRETCH.md) lists them, one line each. The 60
+merchant-written replies plan §7 asks for are the missing evidence: reply
+understanding is currently scored against replies written by the author, which
+is a regression test and not an accuracy claim. Nothing in this repository is a
+stub: a feature that is not finished does not exist in code.

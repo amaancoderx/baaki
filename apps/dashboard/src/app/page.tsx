@@ -71,7 +71,12 @@ export default async function InvoicesPage() {
             Razorpay handles the money. Baaki handles the chasing.
           </p>
         </div>
-        <Link href="/new" className="btn btn-primary">New invoice</Link>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <a className="btn btn-ghost" href="/api/audit?format=csv" title="Every action, its reason and its guard verdicts">
+            Audit trail
+          </a>
+          <Link href="/new" className="btn btn-primary">New invoice</Link>
+        </div>
       </header>
 
       {state.invoices.length === 0 ? (
@@ -117,9 +122,10 @@ export default async function InvoicesPage() {
             Once a day the agent looks at every open invoice and takes exactly one
             action. Most days that action is to wait. When a buyer replies, Baaki AI
             reads it: a promise freezes outreach until the date they gave, a dispute
-            stops it entirely and notifies you.{" "}
-            <Link href="/run" style={{ color: "var(--accent-deep)", fontWeight: 500 }}>Run the agent</Link>{" "}
-            to watch it decide.
+            stops it entirely and notifies you. Open any invoice to see everything that
+            happened to it, with the reason for each step and the guards it passed.{" "}
+            <Link href="/demo" style={{ color: "var(--accent-deep)", fontWeight: 500 }}>Watch a full run</Link>{" "}
+            from issue to payment.
           </div>
 
           {open.length > 0 && (

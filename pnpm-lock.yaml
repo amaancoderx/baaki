@@ -94,6 +94,9 @@ importers:
       '@baaki/sim':
         specifier: workspace:*
         version: link:../sim
+      '@upstash/redis':
+        specifier: ^1.34.3
+        version: 1.38.4
 
   packages/sim:
     dependencies:

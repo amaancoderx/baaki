@@ -56,7 +56,10 @@ export async function policy(): Promise<Policy> {
   return {
     ...stored,
     voice: { ...(stored.voice ?? LIVE_POLICY.voice!), enabled: true },
-    policyVersion: LIVE_POLICY.policyVersion,
+    // The stored version is kept. Stamping LIVE_POLICY's over it made the
+    // compressed demo cadence indistinguishable from the shipped one, which is
+    // the one thing the screen has to be able to tell the viewer.
+    policyVersion: stored.policyVersion ?? LIVE_POLICY.policyVersion,
   };
 }
 

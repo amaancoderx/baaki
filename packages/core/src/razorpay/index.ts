@@ -65,7 +65,19 @@ export function razorpay(cfg: RazorpayConfig) {
   const base = cfg.baseUrl ?? "https://api.razorpay.com/v1";
   const auth = "Basic " + Buffer.from(`${cfg.keyId}:${cfg.keySecret}`).toString("base64");
 
-  async function call<T>(method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+  /**
+   * Retries on a rate limit and on the provider being briefly unavailable.
+   *
+   * Both are ordinary and neither is a reason to drop a nudge on the floor. A
+   * burst of invoices, which is what onboarding a merchant's existing book
+   * looks like, hits the limit immediately. Anything else, a rejected amount or
+   * a dead link, is a real answer and is raised at once.
+   */
+  async function call<T>(
+    method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", path: string, body?: unknown, attempt = 0,
+  ): Promise<T> {
     const res = await fetch(`${base}${path}`, {
       method,
       headers: { Authorization: auth, "Content-Type": "application/json" },
@@ -75,6 +87,13 @@ export function razorpay(cfg: RazorpayConfig) {
     let json: unknown;
     try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
     if (!res.ok) {
+      const retryable = res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504;
+      if (retryable && attempt < 6) {
+        const after = Number(res.headers.get("retry-after"));
+        const waitMs = Number.isFinite(after) && after > 0 ? after * 1000 : Math.min(20_000, 800 * 2 ** attempt);
+        await sleep(waitMs);
+        return call<T>(method, path, body, attempt + 1);
+      }
       const e = (json as { error?: { description?: string; code?: string } }).error;
       throw new RazorpayError(e?.description ?? `HTTP ${res.status}`, res.status, json);
     }

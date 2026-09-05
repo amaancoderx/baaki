@@ -16,18 +16,49 @@ const SUBSTATE: Record<string, { label: string; cls: string; note: string }> = {
   closed: { label: "Closed", cls: "chip-neutral", note: "This case is finished." },
 };
 
+/**
+ * Who caused the entry, in terms a merchant recognises. "webhook" covers both
+ * a payment landing and a buyer writing back, and naming the subsystem told
+ * nobody anything: a promise being recorded was labelled "Razorpay / WhatsApp".
+ */
 const ACTOR: Record<string, string> = {
-  fast: "Rule", agent: "Baaki AI", human: "You", webhook: "Razorpay / WhatsApp",
+  fast: "Rule", agent: "Baaki AI", human: "You", webhook: "From the buyer",
 };
 
-const ACTION: Record<string, string> = {
-  send_nudge: "sent a message", reissue_payment_path: "issued a new payment link",
-  schedule_wait: "waited", open_dispute: "opened a dispute",
-  escalate_to_human: "handed it to you", stop: "closed the case", none: "noted",
-};
+/**
+ * What happened, in the words a merchant would use.
+ *
+ * The stored shape is (actor, action), which produced titles like "You: noted"
+ * for raising an invoice and "Razorpay / WhatsApp: waited" for a promise
+ * freezing outreach. Both are accurate and neither means anything on a screen.
+ */
+function describe(a: { action: string; actor: string; params: Record<string, unknown> }): string {
+  const p = a.params;
+  switch (a.action) {
+    case "deliver_invoice": {
+      const ch = Array.isArray(p.channels) ? (p.channels as string[]) : [];
+      const nice = ch.map((c) => (c === "whatsapp" ? "WhatsApp" : c === "email" ? "email" : c));
+      return nice.length ? `Invoice sent to the buyer on ${nice.join(" and ")}` : "Invoice could not be sent";
+    }
+    case "reissue_payment_path":
+      return p.failed ? "Could not issue a new payment link" : "New payment link issued";
+    case "schedule_wait":
+      return a.actor === "webhook" ? "Promise recorded, outreach frozen" : "Waiting on a promise";
+    case "open_dispute": return "Dispute opened, outreach stopped";
+    case "escalate_to_human": return "Handed to you";
+    case "place_call": return p.failed ? "Call could not be placed" : "Called the buyer";
+    case "stop": return p.substate === "paid" ? "Paid in full, case closed" : "Case closed";
+    case "none":
+      if (p.confirmation === "promise") return "Promise confirmed in writing";
+      if ("amount" in p) return "Invoice raised";
+      if (p.intent) return "Reply read";
+      return "Nothing to do";
+    default: return a.action.replace(/_/g, " ");
+  }
+}
 
 function Timeline({ i }: { i: LiveInvoice }) {
-  type Ev = { ts: number; kind: string; title: string; body?: string; meta?: string; evidence?: string[] };
+  type Ev = { ts: number; kind: string; title: string; who?: string; body?: string; meta?: string; evidence?: string[]; quiet?: boolean };
   const events: Ev[] = [
     ...i.touches.map((t) => ({
       ts: t.ts, kind: "touch",
@@ -51,21 +82,41 @@ function Timeline({ i }: { i: LiveInvoice }) {
     })),
     ...i.audit.filter((a) => a.action !== "send_nudge").map((a) => ({
       ts: a.ts, kind: "decision",
-      title: `${ACTOR[a.actor] ?? a.actor}: ${ACTION[a.action] ?? a.action}`,
+      title: describe(a),
+      who: ACTOR[a.actor] ?? a.actor,
       body: a.rationale,
       meta: a.guards.length ? `${a.guards.filter((g) => g.pass).length} of ${a.guards.length} guards passed` : undefined,
       evidence: a.evidence,
+      quiet: a.action === "none" && !("amount" in a.params) && !a.params.confirmation && !a.params.intent,
     })),
   ].sort((a, b) => a.ts - b.ts);
 
+  // Most days the right move is to wait, and a page that prints every one of
+  // those days buries the days something happened. Consecutive no-ops collapse
+  // into a single line that still says how many there were.
+  const rolled: (Ev & { runs?: number })[] = [];
+  for (const e of events) {
+    const prev = rolled[rolled.length - 1];
+    if (e.quiet && prev?.quiet) {
+      prev.runs = (prev.runs ?? 1) + 1;
+      prev.ts = e.ts;
+      prev.body = e.body;
+      continue;
+    }
+    rolled.push({ ...e });
+  }
+
   return (
     <div className="timeline">
-      {events.map((e, n) => (
+      {rolled.map((e, n) => (
         <div className="tl-item" key={n}>
           <span className={`tl-dot ${e.kind}`} />
           <div>
             <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>{e.title}</span>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>
+                {e.runs && e.runs > 1 ? `Checked ${e.runs} days, nothing to do` : e.title}
+              </span>
+              {e.who && <span className="chip chip-neutral">{e.who}</span>}
               <span className="num" style={{ fontSize: 11, color: "var(--text-4)", marginLeft: "auto" }}>{formatTs(e.ts)}</span>
             </div>
             {e.body && (

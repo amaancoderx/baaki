@@ -82,7 +82,7 @@ the Razorpay event id as audit evidence. A tampered signature is refused.
 | Dashboard: Today, Case, New invoice, Agent run | done |
 | Redis-backed store | done |
 
-**56 tests passing.** 11 commits.
+**106 tests passing.**
 
 ---
 
@@ -302,7 +302,7 @@ un-escalating a case a human already owned.
 
 ```bash
 pnpm install
-pnpm test              # 56 tests: guards, agent bounds, invariants
+pnpm test              # 106 tests: guards, agent bounds, policy, invariants
 pnpm sim               # arms comparison, printed
 pnpm sim:calibrate     # untreated DSO against the ~73-day figure
 pnpm evals:report      # regenerates evals/report.md, no API key needed
