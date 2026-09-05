@@ -134,6 +134,13 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [invId, setInvId] = useState<string | null>(null);
+
+  // Reloading the page must not forget which invoice the demo is following.
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("baaki-demo-inv") : null;
+    if (saved) { setInvId(saved); void refresh(saved); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [inv, setInv] = useState<Inv | null>(null);
   const [clock, setClock] = useState<{ simulatedDate: string; daysAhead: number } | null>(null);
   const [lastNote, setLastNote] = useState<string | null>(null);
@@ -186,6 +193,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "could not create the invoice");
       setInvId(j.invoice.id);
+      window.localStorage.setItem("baaki-demo-inv", j.invoice.id);
       await refresh(j.invoice.id);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -200,13 +208,25 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
         body: JSON.stringify({ action: "advance", ...(days ? { days } : {}) }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? "could not advance");
-      const mine = (j.report?.actions ?? []).filter((a: { invoiceId: string; kind: string }) => a.invoiceId === invId && a.kind !== "none");
-      setLastNote(mine.length === 0 ? "Moved forward. The AI looked at this invoice and chose to wait." : null);
-      await refresh(invId);
+      if (r.status === 409) {
+        // The previous jump is still working the book. Not an error worth a red
+        // box: the poll below picks its results up as they land.
+        setLastNote("Still finishing the previous jump. Give it a few seconds.");
+      } else if (!r.ok) {
+        throw new Error(j.error ?? "could not advance");
+      } else {
+        const mine = (j.report?.actions ?? []).filter((a: { invoiceId: string; kind: string }) => a.invoiceId === invId && a.kind !== "none");
+        setLastNote(mine.length === 0 ? "Moved forward. The AI looked at this invoice and chose to wait." : null);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-    } finally { setBusy(null); }
+    } finally {
+      // Refresh regardless of how the request ended. A timeout or a held lock
+      // does not mean nothing happened; it usually means the opposite, and the
+      // screen going quiet while an email lands reads as a broken page.
+      await refresh(invId);
+      setBusy(null);
+    }
   }
 
   async function reset() {
@@ -214,6 +234,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
     try {
       await fetch("/api/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
       setInvId(null); setInv(null); setLastNote(null);
+      window.localStorage.removeItem("baaki-demo-inv");
       await refresh(null);
     } finally { setBusy(null); }
   }
