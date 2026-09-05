@@ -1,0 +1,23 @@
+app = "baaki-voice"
+# Ashburn: Twilio's media servers are here. Every audio frame crosses whatever
+# distance separates them from this process, twice, so the distance is the
+# latency.
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # A call is a live conversation; the machine must not be asleep when Twilio
+  # dials in, and must not be stopped out from under an in-progress call.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
