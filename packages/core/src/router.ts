@@ -13,8 +13,38 @@ export interface RouteDecision {
  * Deterministic and small on purpose. The model is expensive and unpredictable;
  * it earns a case only when the case genuinely needs judgment.
  */
+/**
+ * Has anything happened since the last decision that the decider did not know
+ * about? A standing decision only holds while the world it was made in holds.
+ */
+function newSignalSince(c: CaseFile, ts: number): boolean {
+  if (c.replies.some((r) => r.ts > ts)) return true;
+  if (c.payments.some((p) => p.ts > ts)) return true;
+  // A promise date passing is new information exactly once: on the day it
+  // passes, and only if the last decision was taken before it. Treating it as
+  // new every day afterwards kept every broken promise re-escalating forever,
+  // which is the bug this whole mechanism exists to fix.
+  if (c.invoice.promisedFor && daysBetween(c.invoice.promisedFor, c.today) >= 0) {
+    const decidedOn = new Date(ts + 5.5 * 3600_000).toISOString().slice(0, 10);
+    if (decidedOn <= c.invoice.promisedFor) return true;
+  }
+  return false;
+}
+
 export function route(c: CaseFile): RouteDecision {
   const inv = c.invoice;
+
+  // A decision already made stands until its review date, unless something new
+  // arrived. Re-asking the model the same question about the same unchanged
+  // case is both expensive and wrong: it already answered.
+  if (
+    c.nextReviewOn &&
+    daysBetween(c.today, c.nextReviewOn) > 0 &&
+    c.lastDecisionTs !== null &&
+    !newSignalSince(c, c.lastDecisionTs)
+  ) {
+    return { route: "fast", reason: "standing decision holds" };
+  }
 
   if (inv.substate === "paid" || inv.substate === "closed") {
     return { route: "fast", reason: "terminal state" };

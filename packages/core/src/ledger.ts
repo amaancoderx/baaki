@@ -185,6 +185,21 @@ export class Ledger {
     return ladder[Math.min(highest + 1, ladder.length - 1)]!;
   }
 
+  /**
+   * The standing review date from the most recent decider action. Stored on the
+   * audit entry so it survives a restart and is visible in the trail.
+   */
+  nextReviewOn(invoiceId: string): CivilDate | null {
+    let best: { ts: number; on: CivilDate } | null = null;
+    for (const e of this.audit.forInvoice(invoiceId)) {
+      if (e.actor !== "fast" && e.actor !== "agent") continue;
+      const on = (e.params as { nextReviewAt?: string }).nextReviewAt;
+      if (!on) continue;
+      if (!best || e.ts > best.ts) best = { ts: e.ts, on };
+    }
+    return best?.on ?? null;
+  }
+
   /** Latest audit entry written by a decider, as opposed to an inbound webhook. */
   lastDecisionTs(invoiceId: string): number | null {
     let ts: number | null = null;
@@ -211,13 +226,14 @@ export class Ledger {
       daysOverdue: this.daysOverdue(inv, today),
       nextRung: this.nextRung(inv, today),
       lastDecisionTs: this.lastDecisionTs(invoiceId),
+      nextReviewOn: this.nextReviewOn(invoiceId),
       policy: this.policy,
     };
   }
 
   // -- transitions ----------------------------------------------------------
 
-  recordTouch(t: Omit<Touch, "id">, guards: GuardResult[], rationale: string, actor: "fast" | "agent" | "human"): Touch {
+  recordTouch(t: Omit<Touch, "id">, guards: GuardResult[], rationale: string, actor: "fast" | "agent" | "human", extraParams: Record<string, unknown> = {}): Touch {
     const touch: Touch = { id: this.id("t"), ...t };
     this.#touches.push(touch);
     const inv = this.invoice(t.invoiceId);
@@ -229,7 +245,7 @@ export class Ledger {
       invoiceId: t.invoiceId,
       actor,
       action: "send_nudge",
-      params: { channel: t.channel, persona: t.persona, rung: t.rung, carriedLiveLink: t.carriedLiveLink },
+      params: { channel: t.channel, persona: t.persona, rung: t.rung, carriedLiveLink: t.carriedLiveLink, ...extraParams },
       rationale,
       guards,
       policyVersion: this.policy.policyVersion,
@@ -300,7 +316,7 @@ export class Ledger {
     rationale: string,
     actor: "fast" | "agent" | "human",
     evidence: string[],
-    extra: Partial<Pick<Invoice, "promisedFor" | "disputeReason" | "closedOn" | "closedReason">> = {},
+    extra: Partial<Pick<Invoice, "promisedFor" | "disputeReason" | "closedOn" | "closedReason">> & { nextReviewAt?: CivilDate } = {},
   ): void {
     const inv = this.invoice(invoiceId);
     inv.substate = substate;

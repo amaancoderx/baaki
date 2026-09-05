@@ -1,4 +1,5 @@
 import { addDays, daysBetween, istParts } from "./time.js";
+import type { CivilDate } from "./time.js";
 import type { Action, CaseFile, Channel, Persona, Rung } from "./types.js";
 
 /**
@@ -24,6 +25,8 @@ export function daysSinceLastTouch(c: CaseFile): number | null {
 export interface FastDecision {
   action: Action;
   rationale: string;
+  /** When to reconsider. The router holds the decision until then. */
+  nextReviewAt?: CivilDate;
 }
 
 const channelFor = (rung: Rung): Channel => (rung === "pre_due" ? "whatsapp" : "whatsapp");
@@ -37,18 +40,19 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
   const inv = c.invoice;
 
   if (inv.substate === "paid") {
-    return { action: { kind: "stop", reason: "paid" }, rationale: "Invoice is paid in full. Closing the campaign." };
+    return { action: { kind: "stop", reason: "paid" }, rationale: "Invoice is paid in full. Closing the campaign.", nextReviewAt: inv.campaignEndsOn };
   }
   if (inv.substate === "closed") {
-    return { action: { kind: "none", reason: "closed" }, rationale: "Invoice is already closed." };
+    return { action: { kind: "none", reason: "closed" }, rationale: "Invoice is already closed.", nextReviewAt: inv.campaignEndsOn };
   }
   if (inv.substate === "human_hold") {
-    return { action: { kind: "none", reason: "human_hold" }, rationale: "Waiting on a human. No automated action." };
+    return { action: { kind: "none", reason: "human_hold" }, rationale: "Waiting on a human. No automated action.", nextReviewAt: inv.campaignEndsOn };
   }
   if (inv.substate === "disputed") {
     return {
       action: { kind: "none", reason: "disputed" },
       rationale: `Dispute open: ${inv.disputeReason ?? "reason not recorded"}. Outreach stays frozen until a human resolves it.`,
+      nextReviewAt: addDays(c.today, c.policy.disputeStaleDays),
     };
   }
 
@@ -57,6 +61,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
     return {
       action: { kind: "escalate_to_human", reason: "campaign ended" },
       rationale: `Campaign ended on ${inv.campaignEndsOn} with ${c.touches.length} touches and no payment. Handing to a human.`,
+      nextReviewAt: addDays(c.today, 365),
     };
   }
 
@@ -66,6 +71,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
       return {
         action: { kind: "schedule_wait", until: addDays(inv.promisedFor, 1), reason: "promise in flight" },
         rationale: `Buyer promised payment by ${inv.promisedFor}. Waiting until the day after before doing anything.`,
+        nextReviewAt: addDays(inv.promisedFor, 1),
       };
     }
   }
@@ -77,6 +83,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
     return {
       action: { kind: "none", reason: "not due" },
       rationale: `Due in ${daysToDue} days. Nothing to do yet.`,
+      nextReviewAt: addDays(inv.dueOn, -c.policy.preDueDays),
     };
   }
 
@@ -84,11 +91,16 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
   if (daysToDue > 0) {
     const alreadyPreDue = c.touches.some((t) => t.rung === "pre_due");
     if (alreadyPreDue) {
-      return { action: { kind: "none", reason: "pre-due nudge already sent" }, rationale: `Pre-due reminder already sent. Due in ${daysToDue} days.` };
+      return {
+        action: { kind: "none", reason: "pre-due nudge already sent" },
+        rationale: `Pre-due reminder already sent. Due in ${daysToDue} days.`,
+        nextReviewAt: inv.dueOn,
+      };
     }
     return {
       action: { kind: "send_nudge", channel: "whatsapp", persona: "accounts", rung: "pre_due", draft: draft("pre_due", "accounts") },
       rationale: `Due in ${daysToDue} days. Sending the pre-due reminder while the payment link is still live.`,
+      nextReviewAt: inv.dueOn,
     };
   }
 
@@ -97,6 +109,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
     return {
       action: { kind: "escalate_to_human", reason: "silent buyer, touch cap reached" },
       rationale: `${c.touches.length} touches with no reply of any kind. Further automated contact has no evidence behind it; handing to a human.`,
+      nextReviewAt: addDays(c.today, 365),
     };
   }
 
@@ -105,6 +118,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
     return {
       action: { kind: "escalate_to_human", reason: "touch cap reached" },
       rationale: `${c.touches.length} touches sent with no payment. The cap is ${c.policy.maxTouches}; handing to a human.`,
+      nextReviewAt: addDays(c.today, 365),
     };
   }
 
@@ -113,6 +127,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
     return {
       action: { kind: "escalate_to_human", reason: "ladder exhausted" },
       rationale: "The ladder is exhausted. Handing to a human.",
+      nextReviewAt: addDays(c.today, 365),
     };
   }
 
@@ -128,6 +143,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
       rationale: silent
         ? `Last touch was ${since} day(s) ago and this buyer has not replied to any of ${c.touches.length} touches. Backing off to a ${gap}-day gap before rung ${rung}.`
         : `Last touch was ${since} day(s) ago. Rung ${rung} needs a ${gap}-day gap.`,
+      nextReviewAt: addDays(c.today, Math.max(1, gap - since)),
     };
   }
 
@@ -135,5 +151,7 @@ export function fastPath(c: CaseFile, draft: (rung: Rung, persona: Persona) => s
   return {
     action: { kind: "send_nudge", channel: channelFor(rung), persona, rung, draft: draft(rung, persona) },
     rationale: `${c.daysOverdue} days overdue, ${since === null ? "no touches yet" : `last touch ${since} days ago`}. Next rung is ${rung}.`,
+    // After sending, the next rung's own gap governs when to look again.
+    nextReviewAt: addDays(c.today, requiredGap(c, c.policy.ladder[Math.min(c.policy.ladder.indexOf(rung) + 1, c.policy.ladder.length - 1)]!)),
   };
 }

@@ -311,7 +311,7 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
           decision = await opts.slowDecider(c);
         } else {
           const fp = fastPath(c, (rung, persona) => templateDraft(c, rung, persona));
-          decision = { action: fp.action, rationale: fp.rationale, confidence: 1, actor: "fast" };
+          decision = { action: fp.action, rationale: fp.rationale, confidence: 1, actor: "fast", ...(fp.nextReviewAt ? { nextReviewAt: fp.nextReviewAt } : {}) };
         }
       }
 

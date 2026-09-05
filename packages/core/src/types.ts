@@ -132,6 +132,8 @@ export interface CaseFile {
    * day for the life of the promise.
    */
   lastDecisionTs: number | null;
+  /** The standing decision: hold until this date unless something new arrives. */
+  nextReviewOn: CivilDate | null;
   policy: Policy;
 }
 
@@ -155,6 +157,14 @@ export interface Decision {
   rationale: string;
   confidence: number;
   actor: "fast" | "agent" | "human" | "webhook";
+  /**
+   * When this case should be looked at again. Until then the decision stands
+   * and the router will not re-escalate it. Without this the same unchanged
+   * case went to the agent every tick — 18.7 times per invoice, worst case 45
+   * consecutive days of identical reasoning — which is both a cost problem and
+   * wrong: the agent already said what to do.
+   */
+  nextReviewAt?: CivilDate;
   /** Present when the agent decided; lets the UI show what it read. */
   toolCalls?: { name: string; args: unknown }[];
 }

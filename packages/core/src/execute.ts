@@ -27,13 +27,39 @@ export function execute(
   const verdict = runGuards(c, a, nowMs, guards);
 
   if (!verdict.allowed) {
+    // A refused action still settles the question for today. Without recording
+    // when to look again, the router has no standing decision and re-escalates
+    // the identical case tomorrow — which is most of why the agent was being
+    // asked the same thing forty days running.
+    if (decision.nextReviewAt) {
+      ledger.audit.append({
+        ts: nowMs, invoiceId: c.invoice.id, actor: decision.actor, action: "none",
+        params: { blocked: a.kind, nextReviewAt: decision.nextReviewAt },
+        rationale: `${decision.rationale} Refused by guards: ${verdict.violation}`,
+        guards: verdict.results, policyVersion: c.policy.policyVersion,
+        evidence: [c.invoice.id],
+      });
+    }
     return { applied: false, action: a, guards: verdict.results, violation: verdict.violation };
   }
 
   const today = istParts(nowMs).date;
+  // Carried on every audit entry so the router can read the standing decision
+  // back after a restart, and so the trail shows when it was meant to expire.
+  const review = decision.nextReviewAt ? { nextReviewAt: decision.nextReviewAt } : {};
 
   switch (a.kind) {
     case "none":
+      // A no-op still records when to look again, otherwise the router has no
+      // standing decision to honour and re-asks the same question tomorrow.
+      if (decision.nextReviewAt) {
+        ledger.audit.append({
+          ts: nowMs, invoiceId: c.invoice.id, actor: decision.actor, action: "none",
+          params: { reason: a.reason, ...review },
+          rationale: decision.rationale, guards: verdict.results,
+          policyVersion: c.policy.policyVersion, evidence: [c.invoice.id],
+        });
+      }
       break;
 
     case "send_nudge": {
@@ -51,6 +77,7 @@ export function execute(
         verdict.results,
         decision.rationale,
         decision.actor === "webhook" ? "fast" : decision.actor,
+        review,
       );
       break;
     }
@@ -70,7 +97,7 @@ export function execute(
         invoiceId: c.invoice.id,
         actor: decision.actor,
         action: "schedule_wait",
-        params: { until: a.until, reason: a.reason },
+        params: { until: a.until, reason: a.reason, ...review },
         rationale: decision.rationale,
         guards: verdict.results,
         policyVersion: c.policy.policyVersion,
@@ -80,12 +107,12 @@ export function execute(
 
     case "open_dispute":
       ledger.setSubstate(c.invoice.id, "disputed", decision.rationale,
-        decision.actor === "agent" ? "agent" : "fast", [c.invoice.id], { disputeReason: a.reason });
+        decision.actor === "agent" ? "agent" : "fast", [c.invoice.id], { disputeReason: a.reason, ...review });
       break;
 
     case "escalate_to_human":
       ledger.setSubstate(c.invoice.id, "human_hold", decision.rationale,
-        decision.actor === "agent" ? "agent" : "fast", [c.invoice.id]);
+        decision.actor === "agent" ? "agent" : "fast", [c.invoice.id], review);
       break;
 
     case "stop":
