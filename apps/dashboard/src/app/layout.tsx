@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="nav-link">Today</Link>
             <Link href="/new" className="nav-link">Naya invoice</Link>
             <Link href="/run" className="nav-link">Agent run</Link>
+            <Link href="/audit" className="nav-link">Audit</Link>
             <div className="nav-right">
               <span className="chip chip-accent">
                 <span className="dot pulse" style={{ background: "var(--accent-deep)" }} /> live

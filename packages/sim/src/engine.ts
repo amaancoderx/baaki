@@ -639,7 +639,7 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
     const lastTouch = touches[touches.length - 1]!;
     if (!sb.reply.bool(persona.reply_prob[lastTouch.channel])) return;
 
-    const draw = drawReply(persona, st, sb.reply, today, touches.length === 1);
+    const draw = drawReply(persona, st, sb.reply, today, touches.length === 1, file.meta.unprompted_stop_prob ?? 0);
     st.pending.push({
       arriveOn: addDays(today, replyDelay(file.meta, sb.reply)),
       intent: draw.intent,

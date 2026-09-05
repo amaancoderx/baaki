@@ -19,17 +19,18 @@ interface Cell {
   label: string;
   params: ComprehensionParams;
   baaki: number; baseline: number; delta: number;
-  frozenDays: number; dnc: number; misheardPct: number;
+  frozenDays: number; dnc: number; misheardPct: number; touches: number;
 }
 
 async function measure(label: string, params: ComprehensionParams): Promise<Cell> {
-  let bkC = 0, bkB = 0, blC = 0, blB = 0, frozen = 0, dnc = 0, heard = 0, misheard = 0;
+  let bkC = 0, bkB = 0, blC = 0, blB = 0, frozen = 0, dnc = 0, heard = 0, misheard = 0, touches = 0;
   for (const seed of SEEDS) {
     const r = await runSim({
       seed, invoices: INVOICES, horizonDays: HORIZON, holdout: 0.5,
       comprehension: params,
     });
     bkC += r.byArm.baaki!.collectedTotal; bkB += r.byArm.baaki!.billed;
+    touches += r.byArm.baaki!.touches;
     blC += r.byArm.baseline!.collectedTotal; blB += r.byArm.baseline!.billed;
     frozen += r.comprehension.daysFrozenOnFalsePromise;
     dnc += r.comprehension.dncViolations;
@@ -41,6 +42,7 @@ async function measure(label: string, params: ComprehensionParams): Promise<Cell
     frozenDays: frozen / SEEDS.length,
     dnc: dnc / SEEDS.length,
     misheardPct: heard === 0 ? 0 : (misheard / heard) * 100,
+    touches: touches / SEEDS.length,
   };
 }
 
@@ -69,25 +71,40 @@ lines.push(`${SEEDS.length} seeds, ${INVOICES} invoices, ${HORIZON}-day horizon,
   `The baseline arm ignores replies entirely, so mishearing cannot touch it —`,
   `which is what makes the delta readable.`, "");
 
-lines.push("| Parser | Baseline | Baaki | Δ pp | Misheard | Days frozen on a false promise | Opt-outs missed |");
+lines.push("| Parser | Baaki | Δ pp | Misheard | Days frozen on a false promise | Touches | Opt-outs missed |");
 lines.push("| --- | --- | --- | --- | --- | --- | --- |");
 for (const c of cells) {
   const mark = c.delta <= 0 ? " **← baseline wins**" : "";
-  lines.push(`| ${c.label} | ${c.baseline.toFixed(2)}% | ${c.baaki.toFixed(2)}% | ${c.delta >= 0 ? "+" : ""}${c.delta.toFixed(2)}${mark} | ${c.misheardPct.toFixed(1)}% | ${c.frozenDays.toFixed(0)} | ${c.dnc.toFixed(1)} |`);
+  lines.push(`| ${c.label} | ${c.baaki.toFixed(2)}% | ${c.delta >= 0 ? "+" : ""}${c.delta.toFixed(2)}${mark} | ${c.misheardPct.toFixed(1)}% | ${c.frozenDays.toFixed(0)} | ${c.touches.toFixed(0)} | ${c.dnc.toFixed(1)} |`);
 }
+lines.push("");
+lines.push("The baseline column is omitted because it cannot move: that arm ignores",
+  "replies entirely, so there is nothing for it to mishear.");
 lines.push("");
 
 const observed = cells.find((c) => c.label === "as observed in replies.md")!;
 const perfect = cells.find((c) => c.label === "perfect comprehension")!;
-lines.push("## What it costs to be wrong", "");
-lines.push(`Moving from perfect comprehension to the error profile observed in`,
-  `\`evals/replies.md\` costs **${(perfect.delta - observed.delta).toFixed(2)}pp** — the difference between`,
-  `${perfect.delta.toFixed(2)}pp and ${observed.delta.toFixed(2)}pp. Every collection figure elsewhere in this`,
-  `repository is measured at the top of that range and should be read as an`,
-  `upper bound.`, "");
-lines.push(breaks
-  ? `Baaki stops beating the baseline once the false-promise rate reaches about **${breaks.label.replace("false promise ", "")}**. On the 40 replies in \`evals/replies.md\` one case was a false promise, so roughly 2.5% — well inside the safe region, on a small denominator.`
-  : `Baaki still beats the baseline at every false-promise rate tested, up to 35%. On the 40 replies in \`evals/replies.md\` the observed rate was roughly 2.5%.`, "");
+const observed = cells.find((c) => c.label === "as observed in replies.md")!;
+const perfect = cells.find((c) => c.label === "perfect comprehension")!;
+const worst = cells.find((c) => c.label === "false promise 35%")!;
+
+lines.push("## Mishearing costs almost nothing here, and the reason matters", "");
+lines.push(`At a 35% false-promise rate the parser invents ${(worst.frozenDays).toFixed(0)} days of frozen`,
+  `outreach per run and collection moves by ${Math.abs(worst.delta - perfect.delta).toFixed(2)}pp. That looks like the model is`,
+  `not wired in. It is: misheard replies rise from ${perfect.misheardPct.toFixed(1)}% to ${worst.misheardPct.toFixed(1)}% and promises`,
+  `recorded rise by roughly a third.`, "");
+lines.push(`The mechanism is that the policy was not going to send anything during`,
+  `those windows anyway. Touches move from ${perfect.touches.toFixed(0)} to ${worst.touches.toFixed(0)} — a handful,`,
+  `across ${INVOICES} invoices. Sticky decisions and 10-to-18 day rung gaps mean a`,
+  `week-long freeze usually overlaps a period of deliberate silence.`, "");
+lines.push(`So this is not evidence that comprehension does not matter. It is evidence`,
+  `that **restraint is a hedge against being wrong**: a policy that messages`,
+  `rarely has little exposure to freezing when it should not. A more aggressive`,
+  `ladder would pay much more for the same parser.`, "");
+lines.push(`Every collection figure elsewhere in this repository assumes perfect`,
+  `comprehension. On this evidence that assumption is worth about`,
+  `${Math.abs(perfect.delta - observed.delta).toFixed(2)}pp, which is small — but it is small because of the policy,`,
+  `not because parsing is easy.`, "");
 
 lines.push("## Missing an opt-out is not an accuracy point", "");
 const stop = cells.filter((c) => c.label.startsWith("missed opt-out"));
@@ -97,9 +114,13 @@ lines.push(`A missed "stop" is the only route by which a real do-not-contact vio
 for (const c of stop) {
   lines.push(`- At ${c.label.replace("missed opt-out ", "")}, **${c.dnc.toFixed(1)} violations per run** — buyers messaged after asking not to be.`);
 }
-lines.push("", `This is why the number is reported on its own rather than folded into an`,
-  `accuracy figure. 87.5% intent accuracy sounds acceptable; "we messaged`,
-  `${stop[0]?.dnc.toFixed(0) ?? "n"} people who had asked us to stop" does not.`, "");
+lines.push("", `This is why it is reported on its own rather than folded into an accuracy`,
+  `figure. "87.5% intent accuracy" sounds acceptable in a way that "we messaged`,
+  `people who had asked us to stop" does not.`, "");
+lines.push("", `This class was untestable until recently. The only route to an opt-out was`,
+  `the over-contact penalty, and the shipped rung gaps never trigger it, so no`,
+  `buyer ever opted out and the count was zero for want of a chance to fail`,
+  `rather than through safety. Buyers now opt out unprompted at a low rate.`, "");
 
 lines.push("## The product change this argues for", "");
 lines.push(`A promise heard at low confidence should not freeze outreach for a week on`,

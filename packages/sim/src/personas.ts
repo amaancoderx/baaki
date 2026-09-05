@@ -36,6 +36,7 @@ export interface PersonaFile {
     dispute_resolution_days: number;
     touch_lift_days: number;
     reply_delay_days: number[];
+    unprompted_stop_prob?: number;
   };
   personas: Record<string, Persona>;
 }

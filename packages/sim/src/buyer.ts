@@ -152,7 +152,10 @@ export function drawReply(
   rng: Rng,
   today: CivilDate,
   isFirstTouch: boolean,
+  unpromptedStopProb = 0,
 ): ReplyDraw {
+  // Some buyers ask to be left alone without having been over-contacted.
+  if (unpromptedStopProb > 0 && rng.bool(unpromptedStopProb)) return { intent: "stop" };
   if (isFirstTouch && !state.hasDisputed && rng.bool(p.dispute_prob_first_touch)) {
     return { intent: "dispute", disputeReason: rng.pick(DISPUTE_REASONS) };
   }

@@ -12,6 +12,11 @@ meta:
   # Days from a dispute being opened to the merchant resolving it. Applies to
   # every persona; it is a property of the merchant, not the buyer.
   dispute_resolution_days: 3
+  # Chance any given reply is an unprompted opt-out. Previously the only route
+  # to "stop" was the over-contact penalty, and the shipped rung gaps never
+  # trigger it — so no buyer ever opted out and the compliance error class was
+  # untestable rather than safe. Some buyers simply do not want messages.
+  unprompted_stop_prob: 0.03
   # A touch lifts the payment hazard for this many days, then decays out.
   touch_lift_days: 3
   # Reply arrives this many days after the touch that provoked it.
