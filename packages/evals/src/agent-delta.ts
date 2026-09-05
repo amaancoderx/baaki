@@ -16,7 +16,7 @@ import {
   caseHash, fastPath, gemini, runCaseAgent, templateDraft,
   type CaseFile, type Decision,
 } from "@baaki/core";
-import { runSim, type SimMetrics } from "@baaki/sim";
+import { runSim, stamp, type SimMetrics } from "@baaki/sim";
 
 const SEEDS = (process.env.SEEDS ?? "7919,15838,23757").split(",").map(Number);
 const INVOICES = Number(process.env.INVOICES ?? 400);
@@ -41,27 +41,49 @@ const rulesDecision = (c: CaseFile): Decision => {
            ...(fp.nextReviewAt ? { nextReviewAt: fp.nextReviewAt } : {}) };
 };
 
+/** Every slow-path case as (what the rules would do -> what the agent did). */
+const pairs: Record<string, number> = {};
+const overrideOutcome = { overrides: 0, agreements: 0 };
+
 /** The agent, with identical situations answered once and reused. */
 async function agentDecision(c: CaseFile): Promise<Decision> {
-  const h = caseHash(c);
+  const proposal = rulesDecision(c);
+  // The rules were tuned against these buyers; the agent was not. Showing it
+  // the standing proposal makes the comparison about information rather than
+  // about who had the better prior.
+  const withPrior: CaseFile = {
+    ...c,
+    rulesProposal: { action: proposal.action.kind, reason: proposal.rationale },
+  };
+  const h = caseHash(withPrior);
   const cached = cache[h];
   if (cached) {
     hits += 1;
-    return rehydrate(cached, c);
+    const d = rehydrate(cached, c);
+    record(proposal.action.kind, d.action.kind);
+    return d;
   }
-  if (!llm) return rulesDecision(c);
+  if (!llm) return proposal;
 
   live += 1;
   if (live % 25 === 0) process.stderr.write(`${live}`);
   else process.stderr.write(".");
 
-  const r = await runCaseAgent(llm, c, c.nowMs, {
+  const r = await runCaseAgent(llm, withPrior, c.nowMs, {
     maxToolCalls: 4, timeoutMs: 20_000, onGuardReject: "retry-once-then-human",
   });
+  record(proposal.action.kind, r.decision.action.kind);
   const a = r.decision.action;
   cache[h] = { action: a.kind, args: { ...a } as Record<string, unknown>, rationale: r.decision.rationale };
   writeFileSync(CACHE, JSON.stringify(cache, null, 2));
   return r.decision;
+}
+
+function record(rules: string, agent: string): void {
+  const k = `${rules} -> ${agent}`;
+  pairs[k] = (pairs[k] ?? 0) + 1;
+  if (rules === agent) overrideOutcome.agreements += 1;
+  else overrideOutcome.overrides += 1;
 }
 
 /** A cached action is replayed against the current case, not copied verbatim. */
@@ -153,6 +175,7 @@ const pick = (arm: string, rp: number, f: (r: Row) => number) =>
 
 const lines: string[] = [];
 lines.push("# What the case agent adds", "");
+lines.push(`> ${stamp()}`, "");
 lines.push(`Same seeds, same buyers, one difference: who answers the slow path.`, "");
 lines.push(`- **Seeds:** ${SEEDS.length} (\`${SEEDS.join(", ")}\`)`);
 lines.push(`- **Invoices per seed:** ${INVOICES}, ${HORIZON}-day horizon, 50/50 split`);
@@ -196,6 +219,21 @@ for (const seed of SEEDS) {
   lines.push(`| ${seed} | ${r.collected.toFixed(2)}% | ${a.collected.toFixed(2)}% | ${(a.collected - r.collected >= 0 ? "+" : "")}${(a.collected - r.collected).toFixed(2)} | ${a.violations} |`);
 }
 lines.push("");
+
+lines.push("## Where the agent departs from the rules", "");
+const totalPairs = overrideOutcome.overrides + overrideOutcome.agreements;
+lines.push(`The agent is shown what the standing policy would do and told to take it`,
+  `unless the case contains something the policy cannot see. It overrode that`,
+  `default on **${((overrideOutcome.overrides / Math.max(1, totalPairs)) * 100).toFixed(0)}%** of slow-path decisions`,
+  `(${overrideOutcome.overrides} of ${totalPairs}).`, "");
+lines.push("| Rules would → agent did | Count |", "| --- | --- |");
+for (const [k, n] of Object.entries(pairs).sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+  const same = k.split(" -> ")[0] === k.split(" -> ")[1];
+  lines.push(`| ${same ? "" : "**"}${k}${same ? "" : "**"} | ${n} |`);
+}
+lines.push("");
+lines.push("The bolded rows are the agent's actual contribution. Everything else is",
+  "the rules, restated.", "");
 
 lines.push("## Per persona, at 50% resolution", "");
 lines.push("| Persona | Rules | Agent | Δ pp |", "| --- | --- | --- | --- |");

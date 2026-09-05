@@ -7,6 +7,7 @@ import {
 import { drawReply, newBuyerState, overContacted, payHazard, replyDelay, setHolidaySet, type BuyerSimState, type ReplyDraw } from "./buyer.js";
 import { loadPersonas, type Persona, type PersonaFile } from "./personas.js";
 import { Rng, buyerStreams, type BuyerStreams } from "./rng.js";
+import { hear, PERFECT, type ComprehensionParams, type HeardReply } from "./comprehension.js";
 import { renderReply } from "./text.js";
 
 export type Arm = "baaki" | "baseline";
@@ -66,6 +67,11 @@ export interface SimOptions {
    * merchant's property, not the buyer's, so they apply to every persona.
    */
   humanQueue?: { resolveProb: number; reviewDelayDays: number };
+  /**
+   * How often the merchant mishears a reply. Absent means perfect
+   * comprehension, which is what every earlier run assumed.
+   */
+  comprehension?: ComprehensionParams;
   /**
    * Parses free-text replies. When absent the ledger is handed the intent the
    * rules sampled, which gives the agent perfect comprehension for free and
@@ -143,6 +149,14 @@ export interface SimResult {
   events: SimEvent[];
   /** Every free-text reply the parser read, with the sampled truth beside it. */
   parses: ParseAudit[];
+  /** What mishearing cost: counts by kind, and days frozen on a false promise. */
+  comprehension: {
+    heard: number;
+    misheard: number;
+    byKind: Record<string, number>;
+    daysFrozenOnFalsePromise: number;
+    dncViolations: number;
+  };
   /** Router split, counted as the run happened rather than reconstructed after. */
   routing: { fast: number; slow: number; reasons: Record<string, number> };
 }
@@ -265,6 +279,11 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
   const streams = new Map<string, BuyerStreams>();
   const parses: ParseAudit[] = [];
   const routing = { fast: 0, slow: 0, reasons: {} as Record<string, number> };
+  const comp = {
+    heard: 0, misheard: 0, byKind: {} as Record<string, number>,
+    daysFrozenOnFalsePromise: 0, dncViolations: 0,
+  };
+  const falsePromiseUntil = new Map<string, CivilDate>();
   const events: SimEvent[] = [];
 
   // -- seed the ledger ------------------------------------------------------
@@ -390,14 +409,36 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
         // Buttons carry their meaning exactly; free text has to be read.
         const viaButton = draw.intent === "promise" || draw.intent === "dispute" ? sb.text.bool(0.35) : sb.text.bool(0.2);
 
-        // What the ledger is told. For a button that is the payload; for free
-        // text it is whatever the parser made of it, right or wrong.
+        // What the ledger is told. A button payload carries its meaning
+        // exactly; free text has to be understood, and understanding can be
+        // wrong.
         let heard: { intent: ReplyIntent; promiseDate?: CivilDate; disputeReason?: string; confidence: number } = {
           intent: draw.intent as ReplyIntent,
           promiseDate: draw.promiseDate,
           disputeReason: draw.disputeReason,
           confidence: viaButton ? 1 : 0.85,
         };
+
+        if (!viaButton && opts.comprehension && opts.comprehension !== PERFECT) {
+          const h: HeardReply = hear(
+            { intent: draw.intent as ReplyIntent, promiseDate: draw.promiseDate, disputeReason: draw.disputeReason },
+            opts.comprehension, sb.text, today,
+          );
+          comp.heard += 1;
+          if (h.misheard) {
+            comp.misheard += 1;
+            comp.byKind[h.kind] = (comp.byKind[h.kind] ?? 0) + 1;
+            if (h.kind === "false_promise" && h.promiseDate) falsePromiseUntil.set(inv.id, h.promiseDate);
+            if (h.kind === "missed_stop") comp.dncViolations += 1;
+          }
+          // Below the threshold the parse is unusable: hand the case over
+          // rather than act on a guess.
+          if (h.confidence < opts.comprehension.threshold) {
+            heard = { intent: "unclear", confidence: h.confidence };
+          } else {
+            heard = { intent: h.intent, promiseDate: h.promiseDate, disputeReason: h.disputeReason, confidence: h.confidence };
+          }
+        }
 
         if (!viaButton && opts.replyParser) {
           const lastTouch = ledger.touchesFor(inv.id).at(-1);
@@ -494,6 +535,14 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
       }
     }
 
+    // Count the cost of believing something that was never said.
+    for (const [invId, until] of falsePromiseUntil) {
+      const inv = ledger.invoice(invId);
+      if (inv.substate === "paid" || inv.substate === "closed") { falsePromiseUntil.delete(invId); continue; }
+      if (daysBetween(today, until) >= 0) comp.daysFrozenOnFalsePromise += 1;
+      else falsePromiseUntil.delete(invId);
+    }
+
     // 3. Payment draws at 18:00 IST, after the day's contact has had its effect.
     const payAt = istAt(today, 18);
     clock.set(payAt);
@@ -554,6 +603,7 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
     events,
     parses,
     routing,
+    comprehension: comp,
   };
 
   // -- helpers --------------------------------------------------------------

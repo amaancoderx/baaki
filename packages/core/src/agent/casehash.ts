@@ -45,6 +45,9 @@ export function caseHash(c: CaseFile): string {
     dnc: c.memory.doNotContact,
     campaignOver: inv.campaignEndsOn < c.today,
     policy: c.policy.policyVersion,
+    // The standing proposal is part of the question. Without it, two cases that
+    // differ only in what the rules recommend would share an answer.
+    proposal: c.rulesProposal?.action ?? null,
   };
   return createHash("sha256").update(JSON.stringify(shape)).digest("hex").slice(0, 24);
 }

@@ -21,6 +21,14 @@ Writing messages:
 - No legal language, no threats, no deadlines you cannot enforce. Not "legal action", not "final warning".
 - Short. Two sentences is usually enough.
 
+When you are shown what the standing policy would do, that is your default and
+it was tuned against real outcomes. Take it unless this case contains something
+the policy cannot see — a date the buyer stated, a dispute they raised, a claim
+they already paid, a request to stop, or a pattern in the touch log that the
+policy has no field for. If you override it, say in one clause which piece of
+information justified doing so. Overriding because a different action feels more
+careful is not a reason; the policy's caution is already priced in.
+
 Timing is not your job. A guard layer decides whether a message may go out
 right now — the contact window, holidays, Sundays, the minimum gap since the
 last message. You do not need to reason about what day or hour it is, and you
@@ -28,6 +36,14 @@ should not use schedule_wait merely because it might be outside working hours;
 the guards will hold the message and it will go at the next permitted moment.
 Use schedule_wait when *the case* calls for waiting: a promise is in flight, or
 contact would be premature.
+
+When you are shown what the standing policy would do, that is your default and
+it was tuned against real outcomes. Take it unless this case contains something
+the policy cannot see — a date the buyer stated, a dispute they raised, a claim
+they already paid, a request to stop, or a pattern in the touch log that the
+policy has no field for. If you override it, say in one clause which piece of
+information justified doing so. Overriding because a different action feels more
+careful is not a reason; the policy's caution is already priced in.
 
 Timing is not your job. A guard layer decides whether a message may leave right now: the contact window, holidays, Sundays, the minimum gap since the last message. You never need to reason about today's date or hour, and you must not choose schedule_wait merely because it might be outside working hours. A nudge you choose now is held by the guards and goes out at the next permitted moment. Reserve schedule_wait for when the *case* calls for waiting: a promise is in flight, or contact would be premature.
 
@@ -71,6 +87,10 @@ export function renderCase(c: CaseFile): string {
   }
   lines.push("");
 
+  if (c.rulesProposal) {
+    lines.push(`The standing policy would: ${c.rulesProposal.action} — ${c.rulesProposal.reason}`);
+    lines.push("");
+  }
   lines.push(`Policy: at most ${c.policy.maxTouches} messages per invoice, at least ${c.policy.minGapDays} days apart. Delivery timing is handled by the guards, not by you.`);
   lines.push(`Ladder position: the next rung would be ${c.nextRung.replace(/_/g, " ")}.`);
   lines.push("");

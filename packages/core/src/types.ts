@@ -134,6 +134,16 @@ export interface CaseFile {
   lastDecisionTs: number | null;
   /** The standing decision: hold until this date unless something new arrives. */
   nextReviewOn: CivilDate | null;
+  /**
+   * What the rules would do with this case, given to the agent as its default.
+   *
+   * Without it the two are not comparable: the rules were tuned against these
+   * buyers by ablation and the agent was not, so the agent starts from a worse
+   * prior and its caution reads as a deficiency. Given the proposal, the
+   * question becomes the useful one — does the case contain information the
+   * rules cannot use?
+   */
+  rulesProposal?: { action: string; reason: string };
   policy: Policy;
 }
 
