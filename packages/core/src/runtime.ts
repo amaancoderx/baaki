@@ -409,7 +409,11 @@ export class Baaki {
     // One pass at a time. Two overlapping ticks would each read the ledger,
     // decide independently, and both send.
     if (this.#locks) {
-      const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(), 280_000);
+      // The ceiling matters more than it looks: a function killed mid-tick leaves
+      // the lock to expire on its own, and at 280s that reads as minutes of a
+      // dead button. The platform kills the function at 120s, so holding the
+      // lock longer than that only ever protects a corpse.
+      const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(), 120_000);
       if (out === null) {
         // Another pass owns the ledger. Reported rather than returned as an
         // empty result, because "nothing to do" and "not allowed to look" are
