@@ -203,6 +203,10 @@ export class Baaki {
       //
       // Payment links remain the reissue path, where a fresh URL is all that
       // is wanted.
+      // One bill, one voice. When Baaki has its own sending address the buyer
+      // gets Baaki's email and Razorpay's template stays silent; two emails
+      // announcing the same invoice reads as a system talking over itself.
+      const ownEmail = Boolean(this.cfg.email && input.contact.email);
       const inv = await this.cfg.razorpay.createInvoice({
         customerId: customer.id,
         amount: input.amount,
@@ -210,15 +214,13 @@ export class Baaki {
         receipt: `baaki_${Date.now()}`,
         expireBy,
         notes: { baaki_contact_id: input.contact.id },
-        // One dispatch, from Razorpay, at issue. Everything after it is Baaki's
-        // and passes the guards.
-        notify: { email: Boolean(input.contact.email), sms: false },
+        notify: { email: !ownEmail && Boolean(input.contact.email), sms: false },
       });
 
       // The create response comes back with email_status "pending": the
       // dispatch settles a moment later. Reading it once more is the difference
       // between reporting what was queued and reporting what was sent.
-      let emailStatus = inv.email_status ?? null;
+      let emailStatus = ownEmail ? null : (inv.email_status ?? null);
       // The dispatch settles a couple of seconds after the invoice is created,
       // so one immediate read always comes back pending and the screen says
       // "not confirmed" about an email that did in fact go.
@@ -329,7 +331,7 @@ export class Baaki {
    * still arrived one message closer to being left alone.
    */
   async #deliver(invoice: Invoice, contact: Contact, shortUrl?: string, emailSent = false): Promise<Delivery | undefined> {
-    const emailRequested = Boolean(contact.email) && Boolean(this.cfg.razorpay);
+    const emailRequested = Boolean(contact.email) && Boolean(this.cfg.razorpay || this.cfg.email);
     const base: Delivery = { emailRequested, emailSent, whatsappMessageId: null, whatsappTemplate: null };
 
     const ledger = await this.cfg.store.load(this.cfg.policy);
@@ -340,6 +342,29 @@ export class Baaki {
     }
 
     let out = base;
+
+    // The bill in Baaki's own voice, from its own address. Replying to it
+    // reaches us, which a no-reply template can never offer.
+    if (this.cfg.email && contact.email && !out.emailSent) {
+      const bodyText = `Namaste ${contact.name}, aapka invoice ${invoice.id} ready hai: ${formatINR(invoice.amount)}, due ${formatCivilShort(invoice.dueOn)}. Neeche diye link se kabhi bhi payment kar sakte hain. Koi sawaal ho to seedha is email ka reply kar dein.`;
+      try {
+        await this.cfg.email.send({
+          to: contact.email,
+          subject: `Invoice ${invoice.id}: ${formatINR(invoice.amount)} due ${formatCivilShort(invoice.dueOn)}`,
+          text: `${bodyText}${shortUrl ? `\n\nPayment link: ${shortUrl}` : ""}`,
+          html: renderEmailHtml({
+            bodyText,
+            buyerName: contact.name,
+            invoiceId: invoice.id,
+            amountLabel: formatINR(invoice.amount),
+            dueLabel: formatCivilShort(invoice.dueOn),
+            ...(shortUrl ? { link: shortUrl } : {}),
+          }),
+        });
+        out = { ...out, emailSent: true };
+      } catch { /* the audit records what actually went */ }
+    }
+
     if (this.cfg.whatsapp) {
       try {
         const usable = await this.usableTemplate(RUNG_TEMPLATE.whatsapp!);
@@ -674,7 +699,7 @@ export class Baaki {
               ? "Final notice. Issuing a fresh link so the closing message carries a live path on both channels."
               : `The payment link expired on ${c.invoice.linkExpiresOn}. Reissuing before the nudge so the message carries a live path.`,
             now,
-            { email: finalRung },
+            { email: finalRung && !this.cfg.email },
           );
         }
         const fresh = ledger.caseFile(invoiceId, now);
