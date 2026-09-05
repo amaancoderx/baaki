@@ -54,7 +54,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { action, days } = (await req.json().catch(() => ({}))) as { action?: string; days?: number };
+  const { action, days, which } = (await req.json().catch(() => ({}))) as { action?: string; days?: number; which?: string };
 
   if (action === "reset") {
     await setDemoOffset(0);
@@ -63,10 +63,10 @@ export async function POST(req: Request) {
 
   if (action === "policy") {
     // Swap the whole book onto the compressed calendar, or back. Same code,
-    // same guards; only the gaps differ, and the screen says so.
-    const { which } = (await Promise.resolve({ which: days === 1 ? "demo" : "live" })) as { which: string };
+    // same guards, same ladder; only the gaps differ, and the screen says so.
     const next = which === "demo" ? DEMO_POLICY : LIVE_POLICY;
-    return json({ policy: await store().savePolicy(next) });
+    const saved = await store().savePolicy(next);
+    return json({ policy: saved, compressed: saved.policyVersion.endsWith("demo") });
   }
 
   if (action !== "advance") return json({ error: "action must be advance, skip, reset or policy" }, 400);

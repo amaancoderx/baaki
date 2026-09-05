@@ -694,6 +694,84 @@ export class Baaki {
   }
 
   /**
+   * A promise made on the phone, put in writing.
+   *
+   * A date agreed out loud is the least durable thing in this system: nobody
+   * can look it up, and the buyer has nothing showing what they agreed to or
+   * how to pay. So the moment a call records one, the same thing goes out as a
+   * message with a live link. It is not a nudge and does not spend the touch
+   * budget: it is a receipt for something the buyer just said.
+   */
+  async confirmPromise(invoiceId: string, promisedFor: string): Promise<{ sent: boolean; detail: string }> {
+    const now = this.cfg.clock.now();
+    const ledger = await this.cfg.store.load(this.cfg.policy);
+    let c;
+    try { c = ledger.caseFile(invoiceId, now); } catch { return { sent: false, detail: "unknown invoice" }; }
+    if (c.memory.doNotContact) return { sent: false, detail: "buyer is on do_not_contact" };
+    if (!this.cfg.whatsapp) return { sent: false, detail: "whatsapp is not configured" };
+
+    // Make sure the link they are being sent actually works.
+    if (!ledger.linkIsLive(c.invoice, istParts(now).date)) {
+      await this.cfg.store.update(async (l) => {
+        await this.reissue(l, invoiceId, "Promise taken on a call. Issuing a live link to send with the confirmation.", now, { email: true });
+        return null;
+      }, this.cfg.policy);
+    }
+
+    const fresh = (await this.cfg.store.load(this.cfg.policy)).caseFile(invoiceId, now);
+    const shortUrl = (await this.cfg.store.load(this.cfg.policy)).external(invoiceId)?.shortUrl ?? "";
+    const text = `Namaste ${fresh.buyer.name}, abhi call par baat hui. Aapne ${formatCivilShort(promisedFor)} tak ${formatINR(fresh.invoice.amount - fresh.invoice.amountPaid)} ka payment karne ko kaha hai, maine note kar liya hai. Tab tak koi reminder nahi bhejenge.${shortUrl ? `\n\nPayment link: ${shortUrl}` : ""}`;
+
+    // The buyer spoke to us on the phone, which does not open a WhatsApp
+    // session window: only an inbound WhatsApp message does. So this goes as
+    // free-form when a window is open and as a template otherwise.
+    const lastReply = fresh.replies.at(-1);
+    const inSession = lastReply ? now - lastReply.ts <= 24 * 3600_000 : false;
+
+    try {
+      if (inSession) {
+        const res = await this.cfg.whatsapp.sendText(fresh.buyer.phone, text);
+        await this.#recordConfirmation(invoiceId, promisedFor, res.messageId, shortUrl);
+        return { sent: true, detail: `confirmation sent (${res.messageId})` };
+      }
+      const usable = await this.usableTemplate(RUNG_TEMPLATE.whatsapp!);
+      if (!usable) return { sent: false, detail: "no approved template available" };
+      const res = usable.isFallback
+        ? await this.cfg.whatsapp.sendTemplate({ to: fresh.buyer.phone, template: usable.template, language: "en_US", bodyParams: [] })
+        : await this.cfg.whatsapp.sendTemplate({
+            to: fresh.buyer.phone, template: usable.template, language: "en",
+            bodyParams: [
+              fresh.buyer.name, invoiceId,
+              formatINR(fresh.invoice.amount - fresh.invoice.amountPaid).replace("₹", "Rs "),
+              formatCivilShort(promisedFor),
+            ],
+            ...(shortUrl ? { urlButtonSuffix: shortUrl.split("/").pop() ?? "" } : {}),
+          });
+      await this.#recordConfirmation(invoiceId, promisedFor, res.messageId, shortUrl);
+      return { sent: true, detail: `confirmation sent (${res.messageId})` };
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      await this.#recordConfirmation(invoiceId, promisedFor, null, shortUrl, why);
+      return { sent: false, detail: why };
+    }
+  }
+
+  async #recordConfirmation(invoiceId: string, promisedFor: string, messageId: string | null, shortUrl: string, failed?: string): Promise<void> {
+    await this.cfg.store.update((ledger) => {
+      ledger.audit.append({
+        ts: this.cfg.clock.now(), invoiceId, actor: "agent", action: "none",
+        params: { confirmation: "promise", promisedFor, messageId, ...(failed ? { failed } : {}) },
+        rationale: failed
+          ? `Could not put the promise of ${formatCivilShort(promisedFor)} in writing: ${failed}`
+          : `Promise of ${formatCivilShort(promisedFor)} taken on the call and confirmed in writing, with a live payment link. Not a reminder, so it does not spend the touch budget.`,
+        guards: [], policyVersion: this.cfg.policy.policyVersion,
+        evidence: [messageId, shortUrl, invoiceId].filter(Boolean) as string[],
+      });
+      return null;
+    }, this.cfg.policy);
+  }
+
+  /**
    * The template Meta will actually accept right now.
    *
    * A template still in review cannot be sent, and failing the send over it

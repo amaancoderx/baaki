@@ -1,4 +1,4 @@
-import { json, policy, store } from "@/lib/server";
+import { baaki, json, policy, store } from "@/lib/server";
 import { runVoiceTool } from "@baaki/core";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,25 @@ export async function POST(req: Request) {
     today: c.today,
     shortUrl: ledger.external(body.invoiceId)?.shortUrl,
   }, s, p, body.callSid ?? "voice");
+
+  // A date agreed out loud is the least durable thing here: nobody can look it
+  // up and the buyer has nothing showing what they agreed to. Put it in writing
+  // straight away, with a live link.
+  if (outcome.ok && body.name === "record_promise") {
+    const on = String(body.args.date ?? body.args.promiseDate ?? "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(on)) {
+      try {
+        const b = await baaki({ origin: new URL(req.url).origin });
+        const confirm = await b.confirmPromise(body.invoiceId, on);
+        return json({ ...outcome, confirmation: confirm });
+      } catch (e) {
+        // The promise is already recorded. Failing to confirm it in writing is
+        // worth reporting but is not worth failing the tool call over, which
+        // would make the agent think the date was never taken.
+        return json({ ...outcome, confirmation: { sent: false, detail: e instanceof Error ? e.message : String(e) } });
+      }
+    }
+  }
 
   return json(outcome);
 }

@@ -42,7 +42,7 @@ const WHAT: Record<string, string> = {
   none: "Decided to do nothing",
 };
 
-export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppState }) {
+export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; state: AppState; compressed: boolean }) {
   const sendable = contacts.filter((c) => c.sendable);
   const [contactId, setContactId] = useState(sendable[0]?.id ?? contacts[0]?.id ?? "");
   const [amount, setAmount] = useState(180000);
@@ -105,13 +105,13 @@ export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppSt
     } finally { setBusy(null); }
   }
 
-  async function advance() {
-    setBusy("advance"); setErr(null);
+  async function advance(days?: number) {
+    setBusy(days ? `skip${days}` : "advance"); setErr(null);
     try {
       const r = await fetch("/api/demo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "advance" }),
+        body: JSON.stringify({ action: "advance", ...(days ? { days } : {}) }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "could not advance");
@@ -122,6 +122,17 @@ export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppSt
       setClock({ simulatedDate: j.simulatedDate, daysAhead: j.daysAhead });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(null); }
+  }
+
+  async function setPace(which: "demo" | "live") {
+    setBusy("pace");
+    try {
+      await fetch("/api/demo", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "policy", which }),
+      });
+      window.location.reload();
     } finally { setBusy(null); }
   }
 
@@ -160,11 +171,26 @@ export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppSt
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-primary" onClick={advance} disabled={busy !== null || !created}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button
+            className={`chip ${compressed ? "chip-warning" : "chip-neutral"}`}
+            style={{ cursor: "pointer", border: "none" }}
+            onClick={() => setPace(compressed ? "live" : "demo")}
+            disabled={busy !== null}
+            title={compressed ? "Switch back to the shipped cadence" : "Compress the cadence to 2 days for a demo"}
+          >
+            {busy === "pace" ? "…" : compressed ? "2-day demo cadence" : "shipped cadence (10-18 days)"}
+          </button>
+          <button className="btn btn-ghost" onClick={() => advance(1)} disabled={busy !== null || !created}>
+            {busy === "skip1" ? <span className="spinner" /> : "+1 day"}
+          </button>
+          <button className="btn btn-ghost" onClick={() => advance(2)} disabled={busy !== null || !created}>
+            {busy === "skip2" ? <span className="spinner" /> : "+2 days"}
+          </button>
+          <button className="btn btn-primary" onClick={() => advance()} disabled={busy !== null || !created}>
             {busy === "advance" ? <><span className="spinner" /> Running</> : "Jump to the next action"}
           </button>
-          <button className="btn btn-ghost" onClick={reset} disabled={busy !== null}>Reset clock</button>
+          <button className="btn btn-quiet" onClick={reset} disabled={busy !== null}>Reset clock</button>
         </div>
       </div>
 
