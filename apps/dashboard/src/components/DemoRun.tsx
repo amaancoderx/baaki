@@ -45,6 +45,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
   // timeline has no new row of its own; this screen exists to show that
   // waiting is a decision, so the row is synthesized here instead.
   const [monitor, setMonitor] = useState<{ date: string; body: string } | null>(null);
+  const [skipped, setSkipped] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async (id?: string | null) => {
@@ -116,6 +117,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
       } else if (!r.ok) {
         throw new Error(j.error ?? "could not advance");
       } else {
+        setSkipped(Array.isArray(j.skipped) ? j.skipped : []);
         const all = (j.report?.actions ?? []).filter((a: { invoiceId: string }) => a.invoiceId === invId);
         const acted = all.filter((a: { kind: string }) => a.kind !== "none");
         if (acted.length === 0) {
@@ -268,6 +270,25 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
           <div className="overline" style={{ marginBottom: 12 }}>The journey</div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <Journey inv={inv} />
+            {skipped.map((d) => (
+              <div key={d}>
+                <div className="day-head" style={{ paddingTop: 14 }}>
+                  <span>DAY {dayOf(Date.parse(`${d}T12:00:00+05:30`), inv.invoice.issuedOn)}</span>
+                  <span style={{ color: "var(--text-4)", fontWeight: 400 }}>
+                    {new Date(Date.parse(`${d}T12:00:00+05:30`)).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 10, padding: "8px 2px", borderLeft: "2px solid var(--hairline)", marginLeft: 6, paddingLeft: 14 }}>
+                  <span style={{ fontSize: 15 }}>📅</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>No-contact day, skipped</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                      The contact window excludes Sundays and holidays, so the clock moved to the next working day.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
             {monitor && !paid && (() => {
               const mDay = dayOf(Date.parse(`${monitor.date}T12:00:00+05:30`), inv.invoice.issuedOn);
               const lastEv = tl.events[tl.events.length - 1];

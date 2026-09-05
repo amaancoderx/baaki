@@ -108,6 +108,18 @@ export async function POST(req: Request) {
     const at = jumpTo(target, Date.now() + off0, p0.contactWindow.holidays);
     const offset = at - Date.now();
     await setDemoOffset(offset);
+
+    // Days the clock rolled through because nobody may be contacted on them.
+    // Skipping them silently made "+1 day" look broken on a Saturday: the
+    // clock leapt two days with no explanation on the screen.
+    const skipped: CivilDate[] = [];
+    let cursor = target;
+    const landed = istParts(at).date;
+    while (cursor < landed) {
+      const cp = istParts(istAt(cursor, 11));
+      if (isNonBusinessDay(cp.date, p0.contactWindow.holidays, cp.weekday)) skipped.push(cursor);
+      cursor = addDays(cursor, 1);
+    }
     const b0 = await baaki({ origin: new URL(req.url).origin });
     const rep = await b0.tick();
     if (rep.lockHeld) return json({ error: "another pass is holding the ledger, try again shortly" }, 409);
@@ -115,6 +127,7 @@ export async function POST(req: Request) {
       ok: true, jumped: true, offsetMs: offset,
       daysAhead: Math.round(offset / 86_400_000),
       simulatedDate: rep.today, looked: 1, quiet: rep.sentCount === 0, nextDue: null,
+      skipped,
       report: {
         sent: rep.sentCount, blocked: rep.blockedCount,
         actions: rep.actions.map((a) => ({
