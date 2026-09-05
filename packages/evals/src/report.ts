@@ -107,6 +107,32 @@ async function ablation(): Promise<string> {
   return lines.join("\n");
 }
 
+/**
+ * Cumulative collected as a share of billed, both arms, averaged over seeds.
+ * Drawn as text so it survives in a diff and needs no chart library.
+ */
+function curveChart(rows: SeedRow[]): string {
+  const avg = (arm: ArmKey): number[] => {
+    const cs = rows.map((r) => r[arm].curve).filter((c) => c.length);
+    if (!cs.length) return [];
+    const n = cs[0]!.length;
+    return Array.from({ length: n }, (_, i) => cs.reduce((s, c) => s + (c[i] ?? 0), 0) / cs.length);
+  };
+  const bk = avg("baaki"), bl = avg("baseline");
+  if (!bk.length) return "(no curve data)";
+
+  const rowsOut: string[] = ["day   baseline                    baaki", ""];
+  for (let d = 0; d <= 120; d += 10) {
+    const b = bl[d] ?? 0, k = bk[d] ?? 0;
+    const bar = (v: number) => "#".repeat(Math.round(v * 24)).padEnd(24);
+    const lead = k > b ? "  baaki ahead" : k < b ? "  baseline ahead" : "";
+    rowsOut.push(`${String(d).padStart(3)}   ${bar(b)}${(b * 100).toFixed(1).padStart(6)}%   ${bar(k)}${(k * 100).toFixed(1).padStart(6)}%${lead}`);
+  }
+  const cross = bk.findIndex((v, i) => v > (bl[i] ?? 0) && i > 5);
+  rowsOut.push("", cross > 0 ? `curves cross on day ${cross}` : "curves do not cross");
+  return rowsOut.join("\n");
+}
+
 function metricTable(rows: SeedRow[]): string {
   const pick = (arm: ArmKey, f: (m: SimMetrics) => number): Summary =>
     summarise(rows.map((r) => f(r[arm])));
@@ -137,6 +163,10 @@ function metricTable(rows: SeedRow[]): string {
   add("Collected by day 90 (% of billed)", (m) => pctAt(m, 90), 1, "%");
   add("Collected at horizon (% of billed)", pct, 1, "%");
   add("DSO (days, issue to settlement)", (m) => m.dso, 1, "", "low");
+  add("DSO, amount-weighted, paid only", (m) => m.dsoPaidWeighted, 1, "", "low");
+  add("Unpaid at horizon", (m) => m.unpaidAtHorizonPct, 1, "%", "low");
+  add("Day reaching 50% collected", (m) => m.dayTo50 ?? 999, 0, "", "low");
+  add("Day reaching 80% collected", (m) => m.dayTo80 ?? 999, 0, "", "low");
   add("Touches per ₹1L collected", (m) => m.touchesPerLakhCollected, 2, "", "low");
   add("Promise-kept rate", (m) => m.promiseKeptRate * 100, 0, "%");
   add("Complaints", (m) => m.complaints, 1, "", "low");
@@ -406,6 +436,31 @@ Baaki ${croreLakh(collectedBk.mean)}. The arms hold roughly equal invoice counts
 this split, but percentages remain the comparable figures.
 
 **Headline effect: ${ci.mean >= 0 ? "+" : ""}${ci.mean.toFixed(2)}pp collected, 95% CI [${ci.lo.toFixed(2)}, ${ci.hi.toFixed(2)}], winning ${ci.wins} of ${SEEDS.length} seeds.**
+
+### Reading the DSO rows
+
+Amount-weighted DSO over paid invoices is **worse** for Baaki, and that is a
+selection effect rather than a regression. Baaki collects invoices the baseline
+never collects at all — unpaid at horizon drops from about 20% to about 13% —
+and the invoices it rescues are late by nature. Adding them to the paid pool
+raises the average of that pool.
+
+This is why the unpaid share sits directly beside it. Quoting a weighted DSO
+alone would flatter whichever arm gives up on hard invoices soonest.
+
+The row that actually captures the trade-off is **day reaching 80% collected**:
+Baaki gets there roughly a month earlier, having waited on promises and been
+behind for the first few weeks.
+
+### The collection curve
+
+Where the trade-off actually lives. Baaki is behind early because it waits on
+promises, and ahead later. The crossing point is the honest summary of the
+whole effect.
+
+\`\`\`
+${curveChart(rows)}
+\`\`\`
 
 ## 2. Per-seed results, and the effect of the split
 

@@ -22,7 +22,8 @@
     "evals:agentic": "tsx packages/evals/src/agentic-run.ts",
     "webhook": "tsx apps/webhook/src/server.ts",
     "tunnel": "cloudflared tunnel --url http://localhost:3001",
-    "voice": "tsx apps/voice/src/server.ts"
+    "voice": "tsx apps/voice/src/server.ts",
+    "evals:agent-delta": "tsx packages/evals/src/agent-delta.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

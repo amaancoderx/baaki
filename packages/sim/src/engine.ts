@@ -91,7 +91,21 @@ export interface SimMetrics {
   billed: number;
   collectedByDay: Record<number, number>;
   collectedTotal: number;
+  /** Mean days issue-to-settlement, unpaid censored at the horizon. */
   dso: number;
+  /**
+   * Amount-weighted days to settlement over paid invoices only. A large invoice
+   * paid late should weigh more than a small one, and censoring unpaid invoices
+   * at the horizon quietly mixes "slow" with "never" — so the unpaid share is
+   * reported beside it rather than folded in.
+   */
+  dsoPaidWeighted: number;
+  unpaidAtHorizonPct: number;
+  /** Day the cumulative collection curve crosses 50% and 80% of billed. */
+  dayTo50: number | null;
+  dayTo80: number | null;
+  /** Cumulative collected by day, as a fraction of billed. For the curve. */
+  curve: number[];
   touches: number;
   touchesPerLakhCollected: number;
   promisesMade: number;
@@ -170,7 +184,9 @@ function emptyMetrics(arm: Arm): SimMetrics {
   return {
     arm, invoices: 0, billed: 0,
     collectedByDay: { 30: 0, 60: 0, 90: 0 },
-    collectedTotal: 0, dso: 0, touches: 0, touchesPerLakhCollected: 0,
+    collectedTotal: 0, dso: 0, dsoPaidWeighted: 0, unpaidAtHorizonPct: 0,
+    dayTo50: null, dayTo80: null, curve: [],
+    touches: 0, touchesPerLakhCollected: 0,
     promisesMade: 0, promisesKept: 0, promiseKeptRate: 1,
     complaints: 0, dncEvents: 0, guardViolations: 0, blockedAttempts: 0,
     escalations: 0, disputes: 0, paidCount: 0,
@@ -601,6 +617,32 @@ function summarise(
     if (e.kind === "blocked") m.blockedAttempts += 1;
   }
 
+  // Cumulative collection by day, per group, for the curve and the crossings.
+  const curves: Record<string, number[]> = {};
+  for (const k of Object.keys(out)) curves[k] = new Array(opts.horizonDays + 1).fill(0);
+  for (const p of ledger.allPayments()) {
+    const inv = ledger.invoice(p.invoiceId);
+    const k = keyOf(inv);
+    const arr = curves[k];
+    if (!arr) continue;
+    const day = Math.max(0, Math.min(opts.horizonDays, daysBetween(startDate, istParts(p.ts).date)));
+    arr[day] = (arr[day] ?? 0) + p.amount;
+  }
+
+  // Amount-weighted days to settlement, paid invoices only.
+  const paidAcc: Record<string, { weighted: number; amount: number; paid: number; total: number }> = {};
+  for (const inv of ledger.invoices()) {
+    const k = keyOf(inv);
+    paidAcc[k] ??= { weighted: 0, amount: 0, paid: 0, total: 0 };
+    paidAcc[k]!.total += 1;
+    const paid = paidOn.get(inv.id);
+    if (!paid) continue;
+    paidAcc[k]!.paid += 1;
+    const days = daysBetween(inv.issuedOn, paid);
+    paidAcc[k]!.weighted += days * inv.amountPaid;
+    paidAcc[k]!.amount += inv.amountPaid;
+  }
+
   // DSO: days from issue to settlement, censoring unpaid invoices at the horizon.
   const dsoAcc: Record<string, { sum: number; n: number }> = {};
   for (const inv of ledger.invoices()) {
@@ -624,6 +666,20 @@ function summarise(
     // construction of execute() this is zero; the metric exists so the claim
     // is measured rather than asserted.
     m.guardViolations = 0;
+
+    const pa = paidAcc[k];
+    if (pa) {
+      m.dsoPaidWeighted = pa.amount === 0 ? 0 : pa.weighted / pa.amount;
+      m.unpaidAtHorizonPct = pa.total === 0 ? 0 : ((pa.total - pa.paid) / pa.total) * 100;
+    }
+
+    const raw = curves[k] ?? [];
+    let run = 0;
+    m.curve = raw.map((v) => { run += v; return m.billed === 0 ? 0 : run / m.billed; });
+    m.dayTo50 = m.curve.findIndex((v) => v >= 0.5);
+    m.dayTo80 = m.curve.findIndex((v) => v >= 0.8);
+    if (m.dayTo50 < 0) m.dayTo50 = null;
+    if (m.dayTo80 < 0) m.dayTo80 = null;
   }
 
   return out;
