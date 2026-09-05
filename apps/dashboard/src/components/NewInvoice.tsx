@@ -73,7 +73,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
           <span className="tag">Created</span>
           Invoice <strong>{result.invoiceId}</strong> is live with a real Razorpay payment
           link. Baaki takes it from here: a reminder before the due date, follow-ups
-          up the ladder after it, and if the buyer replies, Gemini reads the reply and
+          up the ladder after it, and if the buyer replies, Baaki AI reads the reply and
           adjusts. Nothing further is needed from you.
         </div>
         {result.shortUrl && (
@@ -85,7 +85,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
             </a>
             <p className="explain-inline">
               A real Razorpay test link. Paying it fires a webhook and closes the case
-              automatically — nothing is entered by hand.
+              automatically. Nothing is entered by hand.
             </p>
           </div>
         )}
@@ -114,7 +114,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
           <div className="explain">
             <span className="tag">Step 1</span>
             Who are you billing? Contacts marked <strong>WhatsApp ready</strong> can
-            receive real messages. The rest are sample data — the system will still
+            receive real messages. The rest are sample data: the system will still
             do everything, but nothing will actually be delivered.
           </div>
           <input className="input" placeholder="Search by name, city or number"
@@ -152,8 +152,8 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
             <span className="tag">Step 2</span>
             Set the amount and payment terms. The rules below are hard limits the agent
             cannot cross: how many messages at most, the minimum gap between them,
-            and the hours it may contact anyone. These are <strong>guards</strong> —
-            they run again at send time, so a decision cannot skip them.
+            and the hours it may contact anyone. These are <strong>guards</strong>,
+            and they run again at send time, so a decision cannot skip them.
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

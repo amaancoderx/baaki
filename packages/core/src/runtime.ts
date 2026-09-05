@@ -160,7 +160,7 @@ export class Baaki {
         try {
           const va = await this.cfg.razorpay.createVirtualAccount({
             customerId: customer.id,
-            description: `Baaki collections — ${input.contact.name}`,
+            description: `Baaki collections for ${input.contact.name}`,
             notes: { baaki_contact_id: input.contact.id },
           });
           const bank = va.receivers.find((r) => r.account_number);

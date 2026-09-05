@@ -14,7 +14,7 @@ meta:
   dispute_resolution_days: 3
   # Chance any given reply is an unprompted opt-out. Previously the only route
   # to "stop" was the over-contact penalty, and the shipped rung gaps never
-  # trigger it — so no buyer ever opted out and the compliance error class was
+  # trigger it, so no buyer ever opted out and the compliance error class was
   # untestable rather than safe. Some buyers simply do not want messages.
   unprompted_stop_prob: 0.03
   # A touch lifts the payment hazard for this many days, then decays out.

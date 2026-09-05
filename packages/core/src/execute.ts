@@ -29,7 +29,7 @@ export function execute(
   if (!verdict.allowed) {
     // A refused action still settles the question for today. Without recording
     // when to look again, the router has no standing decision and re-escalates
-    // the identical case tomorrow — which is most of why the agent was being
+    // the identical case tomorrow, which is most of why the agent was being
     // asked the same thing forty days running.
     if (decision.nextReviewAt) {
       ledger.audit.append({

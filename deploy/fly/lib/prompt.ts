@@ -27,7 +27,7 @@ const num = (n: number): string =>
   : n < 1000 ? `${HI[Math.floor(n / 100)]} sau${n % 100 ? " " + num(n % 100) : ""}`
   : String(n);
 
-/** "ek lakh assi hazaar rupaye" — digits read aloud in English sound like a machine. */
+/** "ek lakh assi hazaar rupaye". Digits read aloud in English sound like a machine. */
 export function spokenAmount(paise: number): string {
   const r = Math.round(paise / 100);
   const lakh = Math.floor(r / 100000), rest = r % 100000;
@@ -95,7 +95,7 @@ How to speak:
 Timing is not your job. Guards decide when a message may leave. Do not reason about the day or hour.
 
 Always close the call properly. After a tool records something, say one short
-goodbye in Hindi and then stop talking — for example "Theek hai, maine note kar
+goodbye in Hindi and then stop talking. For example "Theek hai, maine note kar
 liya hai. Dhanyavaad, aapka din shubh ho." Never fall silent without saying
 goodbye: the buyer is left holding a dead line and does not know the call is
 over. One sentence, then stop.`;

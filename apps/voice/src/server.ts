@@ -116,8 +116,8 @@ const server = createServer(async (req, res) => {
     const invoiceId = url.searchParams.get("invoice") ?? "";
     const base = (process.env.PUBLIC_VOICE_URL ?? `ws://localhost:${PORT}`).replace(/^http/, "ws");
     // The invoice travels as a <Parameter>, not a query string. Twilio opens
-    // the media socket against the path alone — ngrok logged
-    // `GET /media -> 101` with the query gone — so anything encoded in the URL
+    // the media socket against the path alone. ngrok logged
+    // `GET /media -> 101` with the query gone, so anything encoded in the URL
     // is lost and the socket arrives with no idea which case it is for.
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -176,7 +176,7 @@ wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     try {
       ctx = process.env.BAAKI_API ? await remoteContext(id) : contextFor(id);
     } catch {
-      log(`  unknown invoice "${id}" — closing`);
+      log(`  unknown invoice "${id}", closing`);
       if (!isTwilio) ws.send(JSON.stringify({ type: "error", message: `unknown invoice ${id}` }));
       ws.close();
       return;

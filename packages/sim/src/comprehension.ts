@@ -6,7 +6,7 @@ import type { Rng } from "./rng.js";
  *
  * Without this the simulator hands the ledger the sampled truth, so every run
  * gives the policy perfect comprehension for free. That flatters the one
- * behaviour the product depends on most — believing a buyer and waiting — and
+ * behaviour the product depends on most, believing a buyer and waiting, and
  * hides its most expensive failure: freezing outreach on a promise that was
  * never made, until a date the buyer never gave.
  *
@@ -44,7 +44,7 @@ export const PERFECT: ComprehensionParams = {
  * Fitted to evals/replies.md: 87.5% intent accuracy over 40 author-written
  * cases, one false promise ("kal ya parso" read as a firm date), one missed
  * partial, no missed stops. Small denominators, so these are the right order of
- * magnitude rather than measured rates — which is why the sweep exists.
+ * magnitude rather than measured rates, which is why the sweep exists.
  */
 export const OBSERVED: ComprehensionParams = {
   pIntentFlip: 0.075,

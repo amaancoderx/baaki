@@ -8,7 +8,7 @@ import { systemInstruction, VOICE_TOOLS, type VoiceContext } from "./lib/prompt.
  * Twilio Media Streams to Gemini Live, running beside Twilio's media servers.
  *
  * Only the audio path lives here. The ledger stays with the merchant and is
- * reached over HTTP when a tool fires — a handful of times per call, never per
+ * reached over HTTP when a tool fires, a handful of times per call, never per
  * frame. That split is the whole point: audio round trips are what a caller
  * hears, and they must not cross an ocean.
  */

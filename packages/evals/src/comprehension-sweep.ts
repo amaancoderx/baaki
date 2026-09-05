@@ -2,8 +2,8 @@
  * How much mishearing can the loop absorb?
  *
  * Every other run in this repository gives the policy the buyer's true intent,
- * which flatters the behaviour it depends on most — believing a buyer and
- * waiting — and hides its most expensive failure. This finds the point where
+ * which flatters the behaviour it depends on most, believing a buyer and
+ * waiting, and hides its most expensive failure. This finds the point where
  * that stops being worth it.
  *
  * No API key: the parser is modelled, not called.
@@ -68,10 +68,10 @@ lines.push("# How much mishearing can it absorb?", "");
 lines.push(`> ${stamp()}`, "");
 lines.push(`Every other run in this repository hands the ledger the buyer's true intent.`,
   `That gives the policy perfect comprehension for free, which flatters the`,
-  `behaviour it depends on most — believing a buyer and waiting — and hides its`,
+  `behaviour it depends on most, believing a buyer and waiting, and hides its`,
   `most expensive failure: freezing outreach on a promise nobody made.`, "");
 lines.push(`${SEEDS.length} seeds, ${INVOICES} invoices, ${HORIZON}-day horizon, 50/50 split.`,
-  `The baseline arm ignores replies entirely, so mishearing cannot touch it —`,
+  `The baseline arm ignores replies entirely, so mishearing cannot touch it,`,
   `which is what makes the delta readable.`, "");
 
 lines.push("| Parser | Baaki | Δ pp | Misheard | Days frozen on a false promise | Touches | Opt-outs missed |");
@@ -95,7 +95,7 @@ lines.push(`At a 35% false-promise rate the parser invents ${(worst.frozenDays).
   `not wired in. It is: misheard replies rise from ${perfect.misheardPct.toFixed(1)}% to ${worst.misheardPct.toFixed(1)}% and promises`,
   `recorded rise by roughly a third.`, "");
 lines.push(`The mechanism is that the policy was not going to send anything during`,
-  `those windows anyway. Touches move from ${perfect.touches.toFixed(0)} to ${worst.touches.toFixed(0)} — a handful,`,
+  `those windows anyway. Touches move from ${perfect.touches.toFixed(0)} to ${worst.touches.toFixed(0)}, a handful,`,
   `across ${INVOICES} invoices. Sticky decisions and 10-to-18 day rung gaps mean a`,
   `week-long freeze usually overlaps a period of deliberate silence.`, "");
 lines.push(`So this is not evidence that comprehension does not matter. It is evidence`,
@@ -104,7 +104,7 @@ lines.push(`So this is not evidence that comprehension does not matter. It is ev
   `ladder would pay much more for the same parser.`, "");
 lines.push(`Every collection figure elsewhere in this repository assumes perfect`,
   `comprehension. On this evidence that assumption is worth about`,
-  `${Math.abs(perfect.delta - observed.delta).toFixed(2)}pp, which is small — but it is small because of the policy,`,
+  `${Math.abs(perfect.delta - observed.delta).toFixed(2)}pp, which is small, but it is small because of the policy,`,
   `not because parsing is easy.`, "");
 
 lines.push("## Missing an opt-out is not an accuracy point", "");
@@ -113,7 +113,7 @@ lines.push(`A missed "stop" is the only route by which a real do-not-contact vio
   `can enter this system: every other guard is a pure function that cannot be`,
   `talked out of its answer, but a guard can only honour a flag it was told about.`, "");
 for (const c of stop) {
-  lines.push(`- At ${c.label.replace("missed opt-out ", "")}, **${c.dnc.toFixed(1)} violations per run** — buyers messaged after asking not to be.`);
+  lines.push(`- At ${c.label.replace("missed opt-out ", "")}, **${c.dnc.toFixed(1)} violations per run**, meaning buyers messaged after asking not to be.`);
 }
 lines.push("", `This is why it is reported on its own rather than folded into an accuracy`,
   `figure. "87.5% intent accuracy" sounds acceptable in a way that "we messaged`,
@@ -125,10 +125,10 @@ lines.push("", `This class was untestable until recently. The only route to an o
 
 lines.push("## The product change this argues for", "");
 lines.push(`A promise heard at low confidence should not freeze outreach for a week on`,
-  `a guess. It should ask: one message, two buttons, "Friday 11 Sep tak — sahi`,
+  `a guess. It should ask: one message, two buttons, "Friday 11 Sep tak, sahi`,
   `hai?" That converts an expensive silent failure into a cheap question, and it`,
   `is the change this table exists to justify. It is not built yet.`, "");
 
 release();
 writeFileSync("evals/comprehension.md", lines.join("\n"));
-console.error(`wrote evals/comprehension.md — observed profile costs ${(perfect.delta - observed.delta).toFixed(2)}pp`);
+console.error(`wrote evals/comprehension.md: observed profile costs ${(perfect.delta - observed.delta).toFixed(2)}pp`);

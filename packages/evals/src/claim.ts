@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
  * One writer per generated file.
  *
  * Two sweeps were once run concurrently against the same output; the one that
- * started earlier — before the version stamp existed — finished later and
+ * started earlier, before the version stamp existed, finished later and
  * overwrote the newer file. The result looked like a bug in the stamp and was
  * a race. A generated report is only trustworthy if exactly one run produced it.
  */

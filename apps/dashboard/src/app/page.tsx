@@ -115,8 +115,8 @@ export default async function InvoicesPage() {
           <div className="explain" style={{ marginBottom: 20 }}>
             <span className="tag">How this works</span>
             Once a day the agent looks at every open invoice and takes exactly one
-            action. Most days that action is to wait. When a buyer replies, Gemini
-            reads it — a promise freezes outreach until the date they gave, a dispute
+            action. Most days that action is to wait. When a buyer replies, Baaki AI
+            reads it: a promise freezes outreach until the date they gave, a dispute
             stops it entirely and notifies you.{" "}
             <Link href="/run" style={{ color: "var(--accent-deep)", fontWeight: 500 }}>Run the agent</Link>{" "}
             to watch it decide.

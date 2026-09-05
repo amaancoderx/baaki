@@ -13,7 +13,7 @@ reason each.
 
 **Vercel Functions cannot run Gemini Live.** A diagnostic route held an outbound
 WebSocket to the Live API for 25 seconds from inside a function: the socket
-reached `open` and then received nothing — no `setupComplete`, no error, no
+reached `open` and then received nothing: no `setupComplete`, no error, no
 close. Disabling permessage-deflate changed nothing. Gemini Live is full-duplex,
 so the voice bridge has to live somewhere with a real process. That is the whole
 reason for the second host.
@@ -30,11 +30,11 @@ voice      https://baaki-voice.fly.dev
 Both are registered through APIs rather than dashboards, so they are
 reproducible instead of clicked into existence.
 
-**Razorpay** — `POST /v1/webhooks` with the events Baaki acts on. Note that
+**Razorpay.** `POST /v1/webhooks` with the events Baaki acts on. Note that
 `virtual_account.credited` is rejected unless Smart Collect is enabled on the
 account; it is a paid add-on and returns 404 on a plain test account.
 
-**Meta** — two calls, and both are needed:
+**Meta.** Two calls, and both are needed:
 ```
 POST /{app-id}/subscriptions      callback_url + verify_token + fields=messages
 POST /{waba-id}/subscribed_apps   subscribes the WABA to the app
@@ -54,10 +54,10 @@ re-serialising the JSON would reorder keys and change the digest.
   die mid-demo.
 - **`WA_APP_SECRET`** is what makes signature verification real. Without it the
   endpoint accepts anything claiming to be Meta.
-- **`VOICE_MODE`** — `live` routes calls to the Fly bridge; `gather` falls back
+- **`VOICE_MODE`**: `live` routes calls to the Fly bridge; `gather` falls back
   to Twilio's recogniser and text-to-speech, which runs anywhere but sounds
   synthetic and mishears Hindi.
-- **`VOICE_BRIDGE`** — the Fly URL. Without it the answer route falls back to
+- **`VOICE_BRIDGE`**: the Fly URL. Without it the answer route falls back to
   `gather` regardless of `VOICE_MODE`.
 
 ## Deploying

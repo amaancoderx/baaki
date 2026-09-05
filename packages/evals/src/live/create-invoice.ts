@@ -45,7 +45,7 @@ const baaki = new Baaki({
   clock: systemClock(),
 });
 
-console.log(`Creating invoice for ${contact.name} (${contact.city}) — ${formatINR(amount)}, net ${termDays}\n`);
+console.log(`Creating invoice for ${contact.name} (${contact.city}): ${formatINR(amount)}, net ${termDays}\n`);
 
 const out = await baaki.createInvoice({
   contact,

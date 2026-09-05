@@ -106,7 +106,7 @@ const server = createServer(async (req, res) => {
         name: body.name,
         phone: body.phone.replace(/\D/g, ""),
         email: body.email,
-        city: body.city ?? "—",
+        city: body.city ?? "",
         termDays: body.termDays ?? 30,
         language: body.language ?? "hinglish",
         sendable: body.sendable ?? true,

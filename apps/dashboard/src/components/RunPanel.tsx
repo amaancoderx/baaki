@@ -82,10 +82,10 @@ export function RunPanel() {
       <div className="explain">
         <span className="tag">What happens when you run this</span>
         The agent looks at every open invoice and takes <strong>exactly one action</strong>{" "}
-        on each. Most are settled by a rule — not due yet, or a promise is in flight.
-        Cases that need judgement — the buyer wrote something, a promise was broken,
-        someone has gone quiet — go to Gemini. Every action passes through the guards
-        before anything is sent, and the reason is written to the audit log.
+        on each. Most are settled by a rule: not due yet, or a promise is in flight.
+        Cases that need judgement go to Baaki AI, meaning the buyer wrote something,
+        a promise was broken, or someone has gone quiet. Every action passes through
+        the guards before anything is sent, and the reason is written to the audit log.
       </div>
 
       <div>
@@ -117,7 +117,7 @@ export function RunPanel() {
             <div className="stat">
               <span className="overline">By agent</span>
               <span className="stat-value" style={{ color: "var(--accent-deep)" }}>{report.slowCount}</span>
-              <span className="stat-sub">Gemini decided</span>
+              <span className="stat-sub">Baaki AI decided</span>
             </div>
             <div className="stat">
               <span className="overline">Sent</span>
@@ -138,8 +138,9 @@ export function RunPanel() {
           </div>
 
           <p className="explain-inline">
-            The full audit trail — every action, its reason, and which guards passed — is available as <a href={`${API}/api/audit?format=csv`} style={{ color: "var(--accent-deep)" }}>CSV</a> or 
-            <a href={`${API}/api/audit?format=json`} style={{ color: "var(--accent-deep)" }}>JSON</a> .
+            The full audit trail, with every action, its reason and which guards passed, is available as{" "}
+            <a href={`${API}/api/audit?format=csv`} style={{ color: "var(--accent-deep)" }}>CSV</a> or{" "}
+            <a href={`${API}/api/audit?format=json`} style={{ color: "var(--accent-deep)" }}>JSON</a>.
           </p>
         </>
       )}

@@ -69,13 +69,13 @@ export function fixedClock(startMs: number): Clock & { set(ms: number): void; ad
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-/** "22 Oct" — how a date reads inside a message to a buyer. */
+/** "22 Oct", how a date reads inside a message to a buyer. */
 export function formatCivilShort(date: CivilDate): string {
   const [, m, d] = date.split("-").map(Number);
   return `${d} ${MONTHS[(m ?? 1) - 1]}`;
 }
 
-/** "22 Oct 2025" — for anywhere the year is load-bearing. */
+/** "22 Oct 2025", for anywhere the year is load-bearing. */
 export function formatCivil(date: CivilDate): string {
   const [y, m, d] = date.split("-").map(Number);
   return `${d} ${MONTHS[(m ?? 1) - 1]} ${y}`;

@@ -2,7 +2,7 @@
  * Mutual exclusion and idempotency over Redis.
  *
  * Three things can touch the same invoice at the same moment: a Razorpay
- * webhook, a WhatsApp webhook, and a scheduled tick — on different function
+ * webhook, a WhatsApp webhook, and a scheduled tick, on different function
  * instances, against shared state. Both providers retry deliveries when they do
  * not get a fast 2xx, so the same event arrives more than once as a matter of
  * course rather than as an edge case.

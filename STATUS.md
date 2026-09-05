@@ -1,4 +1,4 @@
-# Baaki — where things stand
+# Baaki: where things stand
 
 Track 03 · AI Revenue Recovery · Razorpay AI Buildathon
 Generated from the repository and the deployed system, not from memory.
@@ -60,7 +60,7 @@ outbound call, Gemini native audio, Hindi
   → she says goodbye, call ends cleanly
 ```
 
-**Razorpay webhook** — a signed `payment_link.paid` closes the case and records
+**Razorpay webhook.** A signed `payment_link.paid` closes the case and records
 the Razorpay event id as audit evidence. A tampered signature is refused.
 
 ---
@@ -86,13 +86,13 @@ the Razorpay event id as audit evidence. A tampered signature is refused.
 
 ---
 
-## 4. The evals — what they measure and what they do not
+## 4. The evals: what they measure and what they do not
 
 There are **three** evals because there are three different questions. They are
 reported separately on purpose; merging them would let a favourable assumption
 in one inflate the number in another.
 
-### 4.1 `evals/report.md` — is the policy worth running?
+### 4.1 `evals/report.md`: is the policy worth running?
 
 **No AI in these numbers.** Scoring the case agent across 10 seeds would be
 roughly **745,920 live model calls**, and the collection figures are meant to be
@@ -101,11 +101,11 @@ reproducible by anyone with the repo and no API key.
 The setup is an A/B test on simulated buyers:
 
 - 6 buyer personas with hidden parameters (`packages/sim/src/personas.yaml`),
-  never visible to the agent — the `CaseFile` type has no field that could
+  never visible to the agent, since the `CaseFile` type has no field that could
   carry them
 - 1,200 invoices per seed, 10 seeds, 120-day horizon
-- Half get **Baseline**: fixed reminders at due, +7, +14, replies ignored —
-  what a reminder schedule does today
+- Half get **Baseline**: fixed reminders at due, +7, +14, replies ignored,
+  which is what a reminder schedule does today
 - Half get **Baaki**: the full guarded loop
 - Both halves draw from the same seeded buyers, each with their own RNG stream,
   so a policy change cannot reshuffle who is who
@@ -118,8 +118,8 @@ The setup is an A/B test on simulated buyers:
 | Collected by day 60 | 66.9 ± 1.9% | 70.3 ± 2.9% | +3.4pp |
 | Collected by day 30 | 30.3 ± 1.6% | 28.9 ± 1.7% | **−1.5pp** |
 | Touches per ₹1L collected | 1.25 ± 0.04 | 1.30 ± 0.05 | **+0.05** |
-| Complaints / opt-outs | 0 | 0 | — |
-| **Guard violations** | 0 | **0** | — |
+| Complaints / opt-outs | 0 | 0 | = |
+| **Guard violations** | 0 | **0** | = |
 
 **Headline: +2.13pp, 95% CI [0.81, 3.45], winning 8 of 10 seeds.**
 
@@ -127,7 +127,7 @@ Two of those rows are worse for Baaki and are printed at the same size as the
 good one. It is slower over the first month because it waits on promises, and
 it spends more messages per rupee, not fewer.
 
-**Calibration.** An untreated ledger — nobody contacted at all — settles at
+**Calibration.** An untreated ledger, with nobody contacted at all, settles at
 **74.2 ± 1.8 days** DSO against the ~73-day figure commonly cited for Indian
 SME receivables. The persona hazards were set by hand against that number and
 the calibration is reproducible.
@@ -165,7 +165,7 @@ spends.
 | `prompt_payer` | 97.0% | 98.4% | +1.4 |
 | `ghost` | 62.6% | 59.2% | **−3.4** |
 
-It loses to `ghost` — buyers who never reply and punish contact. Baaki sends
+It loses to `ghost`, buyers who never reply and punish contact. Baaki sends
 them 3.11 messages against the baseline's 2.73 and collects less for it.
 
 ### 4.4 Where it loses, published
@@ -175,7 +175,7 @@ they share one condition:
 
 > **Every losing cell has a promise-kept probability of 0.25.** When a promise
 > means nothing, the days spent honouring one are never repaid, and the single
-> most valuable thing the loop does — believing a buyer and waiting — becomes
+> most valuable thing the loop does, believing a buyer and waiting, becomes
 > its most expensive habit.
 
 That alone is not enough. It has to combine with the loop having nothing else to
@@ -184,7 +184,7 @@ sell: no payment link ever dies, or a touch does not move payment at all.
 **What does not appear:** not one losing cell has a reduced reply rate. Scarce
 replies were expected to be a losing condition and are not.
 
-### 4.5 `evals/replies.md` — can it read Hinglish?
+### 4.5 `evals/replies.md`: can it read Hinglish?
 
 40 replies, scored against Gemini with a strict response schema.
 
@@ -202,7 +202,7 @@ against the right weekday.
 prompt and the test cases, so it measures self-consistency and catches
 regressions. The file says so rather than presenting 87.5% as evidence.
 
-### 4.6 `evals/agentic-run.md` — does the agent actually work?
+### 4.6 `evals/agentic-run.md`: does the agent actually work?
 
 A small run with the model in the loop end to end:
 
@@ -222,12 +222,12 @@ A small run with the model in the loop end to end:
 - **74,592 decisions** were escalated to the case agent across those runs and
   fell through to the rules
 - **71% of replies were free text**, and the simulator hands the ledger the
-  correct intent — so those runs give Baaki **perfect comprehension for free**
+  correct intent, so those runs give Baaki **perfect comprehension for free**
 
 Real parsing makes mistakes and they are not free: hearing a promise that was
 never made freezes outreach until a date the buyer never gave. The ablation
 suggests the assumption is not propping up the result much, since most of the
-gain is link repair — but that is an argument, not a measurement.
+gain is link repair, but that is an argument, not a measurement.
 
 ---
 
@@ -237,7 +237,7 @@ gain is link repair — but that is an argument, not a measurement.
 fixtures. The test names are the stopping rules:
 
 ```
-✓ sends no touch outside 09:00–18:00 IST
+✓ sends no touch outside 09:00-18:00 IST
 ✓ sends no touch on a holiday or a Sunday
 ✓ never exceeds maxTouches on any invoice
 ✓ never sends two touches closer than minGapDays
@@ -261,14 +261,14 @@ un-escalating a case a human already owned.
 
 14 written up in `docs/FAILURES.md`. The ones that changed conclusions:
 
-1. **A broken promise guaranteed payment** — inverted the persona book. The
+1. **A broken promise guaranteed payment**, which inverted the persona book. The
    worst-paying persona was scoring second best.
 2. **A single global RNG made the experiment unpaired.** Two personas looked
    like losses; after splitting the streams both flipped positive. The "losses"
    were a different set of buyers.
-3. **An inbound promise un-escalated a human-owned case** — caught by an
+3. **An inbound promise un-escalated a human-owned case**, caught by an
    invariant, invisible to every unit test.
-4. **The ladder's own cadence tripped the over-contact penalty** — 55 complaints
+4. **The ladder's own cadence tripped the over-contact penalty**: 55 complaints
    and 26 opt-outs while collecting no more money.
 5. **The headline effect shrank from +2.8pp to +0.6pp** as the sample grew. The
    first number was small-sample noise and would have gone in the README.
@@ -292,7 +292,7 @@ un-escalating a case a human already owned.
 - **Three WhatsApp templates are in Meta's review queue.** A fallback keeps the
   system working, but cold outreach cannot carry the payment link in a template
   button until they clear.
-- **Smart Collect virtual accounts** — returns 404 on a plain Razorpay test
+- **Smart Collect virtual accounts** return 404 on a plain Razorpay test
   account; it is a paid add-on. Payment links are the collection path.
 - **The 5-minute video** (plan §14).
 
@@ -305,7 +305,7 @@ pnpm install
 pnpm test              # 56 tests: guards, agent bounds, invariants
 pnpm sim               # arms comparison, printed
 pnpm sim:calibrate     # untreated DSO against the ~73-day figure
-pnpm evals:report      # regenerates evals/report.md — no API key needed
+pnpm evals:report      # regenerates evals/report.md, no API key needed
 
 # these need GEMINI_API_KEY
 pnpm evals:replies     # reply understanding, cached

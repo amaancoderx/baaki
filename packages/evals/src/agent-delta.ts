@@ -3,7 +3,7 @@
  *
  * The collection numbers in report.md come from the deterministic path: the
  * router escalates, and the escalation falls through to the rules. That leaves
- * the central claim of the track unmeasured — the agent demonstrably runs, but
+ * the central claim of the track unmeasured. The agent demonstrably runs, but
  * nothing shows it helps.
  *
  * This runs the same seeds and the same buyers twice, changing exactly one
@@ -246,8 +246,8 @@ for (const [k, v] of Object.entries(personaDelta).sort()) {
   lines.push(`| \`${k}\` | ${r.toFixed(1)}% | ${a.toFixed(1)}% | ${d >= 0 ? "+" : ""}${d.toFixed(1)} |`);
 }
 lines.push("");
-lines.push("The agent should show up where a case needs reading — `disputer`,",
-  "`promise_breaker`, `partial_payer` — and be near zero on `prompt_payer`, who",
+lines.push("The agent should show up where a case needs reading, so on `disputer`,",
+  "`promise_breaker` and `partial_payer`, and be near zero on `prompt_payer`, who",
   "pays anyway, and `ghost`, who never says anything to read.", "");
 lines.push("## What this measures, and what it cannot", "");
 lines.push("The agent is more restrained than the rules in every run: it escalates",
@@ -255,10 +255,10 @@ lines.push("The agent is more restrained than the rules in every run: it escalat
   "money, consistently and across every resolution rate tested. That is the",
   "result, and it is not the one the product would prefer.", "",
   "One caution about reading it as a verdict on the model. The rules were tuned",
-  "against these personas — the rung gaps, the silent-buyer cap and the touch",
+  "against these personas: the rung gaps, the silent-buyer cap and the touch",
   "budget in policy p3 all came from ablations on this simulator. The agent was",
   "not. A like-for-like comparison would tune both or neither.", "",
-  "The simulator's human is deliberately crude — one draw, one fixed delay, no",
+  "The simulator's human is deliberately crude: one draw, one fixed delay, no",
   "negotiation, no part payment, no relationship. A real collections call can do",
   "things the model cannot represent. Treat the break-even as an order of",
   "magnitude, not a threshold.", "",
@@ -268,4 +268,4 @@ lines.push("The agent is more restrained than the rules in every run: it escalat
 release();
 writeFileSync("evals/agent-delta.md", lines.join("\n"));
 const at50 = mean(pick("agent", 0.5, (x) => x.collected)) - mean(pick("rules", 0.5, (x) => x.collected));
-console.error(`wrote evals/agent-delta.md — ${live} live calls, ${hits} cache hits, delta at 50% resolution ${at50 >= 0 ? "+" : ""}${at50.toFixed(2)}pp, break-even ${breakEven === null ? "not reached" : (breakEven * 100) + "%"}`);
+console.error(`wrote evals/agent-delta.md: ${live} live calls, ${hits} cache hits, delta at 50% resolution ${at50 >= 0 ? "+" : ""}${at50.toFixed(2)}pp, break-even ${breakEven === null ? "not reached" : (breakEven * 100) + "%"}`);

@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 /**
  * The merchant's buyer book. Synthetic by default so the app has something to
  * bill on first run, but a real contact can be added and is treated no
- * differently — a live WhatsApp number is just a contact whose `sendable` flag
+ * differently: a live WhatsApp number is just a contact whose `sendable` flag
  * is set because it has been registered as a test recipient with Meta.
  */
 export interface Contact {

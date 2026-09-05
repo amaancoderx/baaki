@@ -9,7 +9,7 @@ repository at some point, how it was caught, and what changed.
 
 **What was wrong.** The simulator modelled a promise the buyer did not intend to
 keep as "pays on the promised date plus a slip". That is a scheduled payment. It
-meant `promise_breaker` — a persona defined by a 25% promise-kept probability —
+meant `promise_breaker`, a persona defined by a 25% promise-kept probability,
 always paid, and paid on a known date.
 
 **How it showed.** The first per-persona run had `promise_breaker` at 100%
@@ -63,7 +63,7 @@ the case straight back to the machine.
 
 **How it showed.** The invariant `sends zero touches after escalation to a human`
 failed on `inv_200` with touch `t_1154`. Nothing in the unit tests caught it,
-because each guard was correct in isolation — the ledger was moving the invoice
+because each guard was correct in isolation. The ledger was moving the invoice
 out from under them.
 
 **Why it mattered.** This is the compliance claim. "Escalated to a human" has to
@@ -103,7 +103,7 @@ opt-outs both went to zero and collection went up.
 ## 5. The sensitivity grid could not find a losing region, because it varied the wrong things
 
 **What was wrong.** The grid from the plan varies owner-persona lift,
-promise-kept probability, over-contact penalty and reply rate — 54 cells, all
+promise-kept probability, over-contact penalty and reply rate: 54 cells, all
 probing reply-reading and restraint. Zero cells favoured Baseline.
 
 **How it showed.** `0/54 grid cells favour Baseline` is not a good result. A
@@ -159,7 +159,7 @@ Instrumenting the router during a run rather than after gave the size: **13,593
 decisions across 5 seeds** were escalated to a case agent that did not exist and
 silently fell back to rules. Separately, the simulator handed the ledger the
 reply intent it had sampled, so **70% of inbound replies were free text that no
-parser ever read** — the agent was scored with perfect comprehension it had not
+parser ever read**, so the agent was scored with perfect comprehension it had not
 earned.
 
 **Why it mattered.** Not one published number was wrong, but the report did not
@@ -187,7 +187,7 @@ with a `thoughtSignature` and rejects the call if it returns without one:
 **How it showed.** 5 of 29 episodes in the first agentic run ended in
 `human-error`. The agent could decide immediately, but the moment it called a
 read tool first and tried to continue, the next turn 400'd. Mean tool calls per
-episode was 1.06 against a budget of 4 — the read tools were effectively dead.
+episode was 1.06 against a budget of 4, so the read tools were effectively dead.
 
 **Why it mattered.** Reading the case before deciding is the entire argument for
 having an agent rather than a rule. Failing closed to `escalate_to_human` meant
@@ -224,7 +224,7 @@ reason dropped from 18 to 1 and the fast/slow split settled at 94/6.
 correct and Twilio connected happily. The invoice never arrived.
 
 **How it showed.** As a transport error, which it was not. Twilio reported
-31951 — "Stream - Protocol connection error" — and the server logged nothing at
+31951, "Stream - Protocol connection error", and the server logged nothing at
 all, which reads like a tunnel or TLS problem. Two tunnels were swapped out
 chasing it. ngrok's request log settled it: `GET /media -> 101`, query string
 gone. Twilio had connected fine; the socket simply arrived not knowing which
@@ -276,12 +276,12 @@ Vercel next to Twilio to cut roughly 500 ms of transcontinental latency.
 
 **How it showed.** Calls connected and stayed silent. A diagnostic route held an
 outbound socket to Gemini Live for 25 seconds from inside a function: it reached
-`open`, then received nothing — no `setupComplete`, no error, no close.
+`open`, then received nothing: no `setupComplete`, no error, no close.
 Disabling permessage-deflate changed nothing.
 
 **Why it mattered.** The turn-based fallback works anywhere but puts Twilio's
 recogniser and text-to-speech either side of the model, and both are audibly
-worse — synthetic voice, mangled Hindi. Real-time is the product.
+worse, with synthetic voice and mangled Hindi. Real-time is the product.
 
 **Fix.** The bridge runs on Fly in Ashburn. Serverless was the wrong shape for
 something that has to hold two sockets open at once.
@@ -293,8 +293,8 @@ something that has to hold two sockets open at once.
 **What was wrong.** Meta answers `#132001 Template name does not exist` for a
 template still queued for review, and the send threw.
 
-**How it showed.** The agent did everything right — spotted the expired payment
-link, reissued it, wrote correct Hinglish, passed every guard — and the buyer
+**How it showed.** The agent did everything right. It spotted the expired payment
+link, reissued it, wrote correct Hinglish and passed every guard, and the buyer
 heard nothing, because a template was waiting in a queue.
 
 **Fix.** The channel asks which templates are actually approved and opens the

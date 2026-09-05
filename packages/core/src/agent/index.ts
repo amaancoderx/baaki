@@ -13,8 +13,8 @@ import { ALL_TOOLS, READ_TOOL_NAMES, WRITE_TOOL_NAMES } from "./tools.js";
  * nothing to wait for.
  *
  * Told in the prompt that delivery timing is the guards' problem, the model
- * still reached for schedule_wait because the date looked like a weekend —
- * repeatedly, on a case that was 22 days overdue with a dead payment link. An
+ * still reached for schedule_wait because the date looked like a weekend, and
+ * did so repeatedly, on a case that was 22 days overdue with a dead payment link. An
  * instruction it can ignore is not a bound. The router escalates a case
  * precisely when a decision is needed; if no promise is in flight and no reply
  * is outstanding, deferring is not one of the available decisions.
@@ -159,8 +159,8 @@ const human = (reason: string, rationale: string): Decision => ({
 /**
  * One bounded episode per case. Read tools are free to call but count against
  * the budget; the episode ends at the first write tool. Everything the model
- * cannot be trusted to respect — one write, the budget, the timeout, the guard
- * verdict — is enforced here rather than requested in the prompt.
+ * cannot be trusted to respect (one write, the budget, the timeout, the guard
+ * verdict) is enforced here rather than requested in the prompt.
  */
 export async function runCaseAgent(
   llm: Llm,

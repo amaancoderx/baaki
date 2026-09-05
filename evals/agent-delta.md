@@ -47,8 +47,8 @@ Three seeds is a wide interval. Per-seed numbers, at 50% resolution:
 | `promise_breaker` | 85.7% | 85.2% | -0.5 |
 | `prompt_payer` | 98.6% | 98.6% | +0.0 |
 
-The agent should show up where a case needs reading — `disputer`,
-`promise_breaker`, `partial_payer` — and be near zero on `prompt_payer`, who
+The agent should show up where a case needs reading, so on `disputer`,
+`promise_breaker` and `partial_payer`, and be near zero on `prompt_payer`, who
 pays anyway, and `ghost`, who never says anything to read.
 
 ## What this measures, and what it cannot
@@ -59,11 +59,11 @@ money, consistently and across every resolution rate tested. That is the
 result, and it is not the one the product would prefer.
 
 One caution about reading it as a verdict on the model. The rules were tuned
-against these personas — the rung gaps, the silent-buyer cap and the touch
+against these personas: the rung gaps, the silent-buyer cap and the touch
 budget in policy p3 all came from ablations on this simulator. The agent was
 not. A like-for-like comparison would tune both or neither.
 
-The simulator's human is deliberately crude — one draw, one fixed delay, no
+The simulator's human is deliberately crude: one draw, one fixed delay, no
 negotiation, no part payment, no relationship. A real collections call can do
 things the model cannot represent. Treat the break-even as an order of
 magnitude, not a threshold.

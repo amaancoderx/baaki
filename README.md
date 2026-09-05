@@ -9,7 +9,7 @@ Track 03 · AI Revenue Recovery · Razorpay AI Buildathon.
 
 ## Measured result
 
-500–1200 invoices per run, 10 seeds, balanced 50/50 split against a fixed
+500-1200 invoices per run, 10 seeds, balanced 50/50 split against a fixed
 reminder schedule. Full method and per-seed numbers in
 [`evals/report.md`](evals/report.md).
 
@@ -20,9 +20,9 @@ reminder schedule. Full method and per-seed numbers in
 | Collected by day 30 | 30.3 ± 1.6% | 28.9 ± 1.7% | **−1.5pp** |
 | DSO (days, issue to settlement) | 53.8 ± 1.7 | 53.7 ± 1.8 | −0.0 |
 | Touches per ₹1L collected | 1.25 ± 0.04 | 1.30 ± 0.05 | **+0.05** |
-| Complaints | 0.0 | 0.0 | — |
-| Do-not-contact events | 0.0 | 0.0 | — |
-| **Guard violations** | 0 | **0** | — |
+| Complaints | 0.0 | 0.0 | = |
+| Do-not-contact events | 0.0 | 0.0 | = |
+| **Guard violations** | 0 | **0** | = |
 
 **Headline: +2.13pp collected, 95% CI [0.81, 3.45], winning 8 of 10 seeds.**
 
@@ -36,7 +36,7 @@ Three things in that table are worth reading before the good number:
   actually deploy, a single run cannot distinguish it from zero
   ([report §2](evals/report.md)).
 
-The untreated ledger — nobody contacted at all — settles at **74.2 ± 1.8 days**
+The untreated ledger, with nobody contacted at all, settles at **74.2 ± 1.8 days**
 DSO, against the ~73-day figure commonly cited for Indian SME receivables. The
 persona hazards were set by hand against that number; the calibration is
 reproducible with `pnpm sim:calibrate`.
@@ -45,8 +45,8 @@ reproducible with `pnpm sim:calibrate`.
 
 16 of 144 cells in the sensitivity grid favour the baseline. **Every one of them
 has a promise-kept probability of 0.25.** When a promise means nothing, the days
-spent honouring one are never repaid, and the most valuable thing the loop does —
-believing a buyer and waiting — becomes its most expensive habit.
+spent honouring one are never repaid, and the most valuable thing the loop does,
+believing a buyer and waiting, becomes its most expensive habit.
 
 That is necessary but not sufficient. It has to combine with the loop having
 nothing else to sell: either no payment link ever expires, so there is nothing
@@ -77,7 +77,7 @@ that is a rule: not due yet, wait for the promised date, paid so close. When a
 buyer has replied in free text, promised, disputed, or gone quiet past a
 threshold, the case needs judgment and routes to a case agent.
 
-A deterministic guard layer then decides whether the step is allowed — contact
+A deterministic guard layer then decides whether the step is allowed: contact
 window, holidays, touch budget, promise or dispute in flight, do-not-contact,
 campaign end. **Guards run at execution time, not proposal time**: a decision
 made at 17:58 that arrives at 18:01 does not go out.
@@ -123,7 +123,7 @@ against a fake model so they need no network.
 fixtures. The test names are the stopping rules:
 
 ```
-✓ sends no touch outside 09:00–18:00 IST
+✓ sends no touch outside 09:00-18:00 IST
 ✓ sends no touch on a holiday or a Sunday
 ✓ never exceeds maxTouches on any invoice
 ✓ never sends two touches closer than minGapDays
@@ -158,12 +158,12 @@ Verified end to end against a real Indian mobile:
   `payment_link.paid` closes the case with the event id as audit evidence.
 - **The agent** noticed the payment link had expired, reissued it before
   speaking, and wrote the nudge itself.
-- **WhatsApp** delivered it. The reply — *"Me monday tak payment krta hu"* —
-  was read by Gemini as a promise for 2026-09-07 at 0.95 confidence, and
+- **WhatsApp** delivered it. The reply, *"Me monday tak payment krta hu"*,
+  was read as a promise for 2026-09-07 at 0.95 confidence, and
   outreach froze. The next tick routed to the fast path with reason
   `promise still in flight` and sent nothing.
 - **Voice**: a real call in Hindi. *"agle hafte Tuesday"* became a promise for
-  2026-09-15 — next week's Tuesday, not this week's — then she said goodbye and
+  2026-09-15, next week's Tuesday rather than this week's, then she said goodbye and
   hung up.
 
 Deployment, and why the voice bridge lives on a different host, is in
@@ -208,7 +208,7 @@ together with the region where it loses.
 
 ## What broke
 
-[`docs/FAILURES.md`](docs/FAILURES.md) — fourteen real entries. A modelling bug
+[`docs/FAILURES.md`](docs/FAILURES.md) holds fourteen real entries. A modelling bug
 that made the worst-paying persona the second-best. A headline effect that shrank
 from +2.8pp to +0.6pp when the sample grew. An entire agent layer that was wired
 but never called. Twilio silently dropping the query string from a stream URL,
@@ -217,7 +217,7 @@ that never delivers a frame, which is why the voice bridge runs somewhere else.
 
 ## What is not built
 
-[`docs/STRETCH.md`](docs/STRETCH.md) — one line each. The WhatsApp channel and
+[`docs/STRETCH.md`](docs/STRETCH.md) lists them, one line each. The WhatsApp channel and
 the Razorpay adapter are the next two, and the 60 merchant-written replies plan
 §7 asks for are the missing evidence. Nothing in this repository is a stub: a
 feature that is not finished does not exist in code.

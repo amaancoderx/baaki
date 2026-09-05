@@ -3,7 +3,7 @@
  * cases go to the case agent, and free-text replies are parsed rather than
  * handed to the ledger as ground truth.
  *
- * Small by necessity — every slow-path case is a live call — so this is a
+ * Small by necessity, since every slow-path case is a live call, so this is a
  * demonstration that the wiring holds under real conditions, not a measurement
  * of collection. The collection numbers stay in report.md on the rules arm.
  */

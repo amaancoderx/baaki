@@ -5,8 +5,8 @@ import { systemClock, type Clock } from "./time.js";
 import { DEFAULT_POLICY, type Policy } from "./types.js";
 
 /**
- * File-backed ledger. The live app spans processes — a webhook delivery, a
- * dashboard render, a scheduled tick — so the ledger has to survive each of
+ * File-backed ledger. The live app spans processes (a webhook delivery, a
+ * dashboard render, a scheduled tick), so the ledger has to survive each of
  * them. Writes go through a temp file and a rename so a crash mid-write cannot
  * leave a half-written ledger behind.
  */

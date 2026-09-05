@@ -89,7 +89,7 @@ export async function understandReply(
 
 /**
  * Enforces the invariants the schema cannot. A model that returns intent
- * "promise" with no date, or a date in the past, has not given us a promise —
+ * "promise" with no date, or a date in the past, has not given us a promise,
  * and acting on one would freeze outreach for nothing.
  */
 export function normaliseParse(

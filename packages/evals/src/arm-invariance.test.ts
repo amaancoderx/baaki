@@ -6,7 +6,7 @@ import { runSim, type SimMetrics } from "@baaki/sim";
  *
  * Two measurement bugs got past everything else because nothing watched for
  * this. Modelling a human who works the escalation queue moved the *baseline*
- * arm — which never escalates, so it cannot have a queue — from 88.0% to 77.7%.
+ * arm, which never escalates and so cannot have a queue, from 88.0% to 77.7%.
  * The number that moved was the one that proved the change was wrong, and it
  * was only noticed by eye.
  *

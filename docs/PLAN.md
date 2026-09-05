@@ -1,5 +1,5 @@
 
-# Baaki — build plan v2
+# Baaki build plan v2
 
 Track 03 · AI Revenue Recovery · Razorpay AI Buildathon
 Working name *Baaki* (Hindi: "what's remaining").
@@ -48,7 +48,7 @@ Rubric axis "AI judgment": ~80% of decisions go through a deterministic fast pat
 
 ## 3. The one paragraph
 
-Baaki is a program a Razorpay merchant plugs into their account. Every Razorpay Invoice or Payment Link they send, Baaki watches. It keeps a ledger of who owes what and for how long, and a small memory of how each buyer behaves. Once a day, and whenever a buyer replies on WhatsApp, it decides one bounded action for each open invoice: most days that's a rule (not due yet; wait for the promised date; paid, close); when a buyer has replied with free text, promised, disputed, or gone quiet past a threshold, an LLM case agent reads the whole story and proposes the next step with a written reason. A deterministic guard layer decides whether that step is allowed — contact window, holidays, max touches, dispute or promise in flight, do-not-contact, campaign end. Money lands in a Smart Collect virtual account, Razorpay's webhook says paid, Baaki stops. Every action, with its reason and its evidence, is in an audit log.
+Baaki is a program a Razorpay merchant plugs into their account. Every Razorpay Invoice or Payment Link they send, Baaki watches. It keeps a ledger of who owes what and for how long, and a small memory of how each buyer behaves. Once a day, and whenever a buyer replies on WhatsApp, it decides one bounded action for each open invoice: most days that's a rule (not due yet; wait for the promised date; paid, close); when a buyer has replied with free text, promised, disputed, or gone quiet past a threshold, an LLM case agent reads the whole story and proposes the next step with a written reason. A deterministic guard layer decides whether that step is allowed: contact window, holidays, max touches, dispute or promise in flight, do-not-contact, campaign end. Money lands in a Smart Collect virtual account, Razorpay's webhook says paid, Baaki stops. Every action, with its reason and its evidence, is in an audit log.
 
 ---
 
@@ -66,11 +66,11 @@ Signals → Ledger → Decide (router → fast path | case agent) → Guards →
 
 **Ledger.** One record per invoice. State `open → due → overdue`; substate `awaiting_reply | promised(date) | disputed(reason) | human_hold | paid | closed`. Buyer memory (deterministic): avg days late, promise-kept rate, dispute rate, replies-per-touch by channel, last-reply hour, language, `do_not_contact`.
 
-**Router** — deterministic, small. Slow path iff: a free-text reply is pending; a promise was broken; a dispute is open and unresolved for > N days; silent past the escalation threshold with touches remaining; the next rung is owner-persona or human; last parse confidence < threshold. Otherwise fast path.
+**Router.** Deterministic, small. Slow path iff: a free-text reply is pending; a promise was broken; a dispute is open and unresolved for > N days; silent past the escalation threshold with touches remaining; the next rung is owner-persona or human; last parse confidence < threshold. Otherwise fast path.
 
-**Fast path** — pure function `policy(case) → action`. Not due → none. Due in 3 days → pre-due nudge. Overdue, silent, window open, touches left → next rung. Promised and date not reached → wait. Promised and date passed with no payment → slow path. Paid → close. Campaign end reached → `escalate_to_human`.
+**Fast path.** Pure function `policy(case) → action`. Not due → none. Due in 3 days → pre-due nudge. Overdue, silent, window open, touches left → next rung. Promised and date not reached → wait. Promised and date passed with no payment → slow path. Paid → close. Campaign end reached → `escalate_to_human`.
 
-**Case agent** — one bounded episode with function calling. Input: the case file (invoice, aging, memory, full touch log, policy, guard state, today). Budget: ≤ 4 tool calls, exactly 1 write action, 20 s. Output: `{action, params, rationale, confidence}`. Guard rejection → violation text back to the agent → one retry → else `human_hold` with rationale attached.
+**Case agent.** One bounded episode with function calling. Input: the case file (invoice, aging, memory, full touch log, policy, guard state, today). Budget: ≤ 4 tool calls, exactly 1 write action, 20 s. Output: `{action, params, rationale, confidence}`. Guard rejection → violation text back to the agent → one retry → else `human_hold` with rationale attached.
 
 **Guards** (pure, tested, same for both paths, re-run at execution time):
 
@@ -89,10 +89,10 @@ Signals → Ledger → Decide (router → fast path | case agent) → Guards →
 | --------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `send_nudge(channel, persona, draft)` | window, touches, gap, dispute/promise, dnc, template rule, draft filter | persona ∈ {accounts, owner}                                                                                       |
 | `reissue_payment_path()`              | none beyond stop-on-paid                                                | cancels expired invoice, creates fresh Payment Link with`expire_by`; always paired with a nudge in the same tick |
-| `schedule_wait(until, reason)`        | —                                                                      | always allowed                                                                                                     |
-| `open_dispute(reason)`                | —                                                                      | moves to`disputed`, freezes outreach, notifies merchant                                                          |
-| `escalate_to_human(reason)`           | —                                                                      | always allowed                                                                                                     |
-| `stop(reason)`                        | —                                                                      | terminal                                                                                                           |
+| `schedule_wait(until, reason)`        | n/a                                                                   | always allowed                                                                                                     |
+| `open_dispute(reason)`                | n/a                                                                   | moves to`disputed`, freezes outreach, notifies merchant                                                          |
+| `escalate_to_human(reason)`           | n/a                                                                   | always allowed                                                                                                     |
+| `stop(reason)`                        | n/a                                                                   | terminal                                                                                                           |
 
 Read tools (free): `get_invoice`, `get_buyer_history`, `get_touch_log`, `check_payment_status`.
 
@@ -104,7 +104,7 @@ Outbound: utility template with buttons ("Pay now", "Already paid", "Pay on a da
 
 ### 4.3 Razorpay surface (test mode)
 
-Customers · Invoices (`expire_by`) · Payment Links · Smart Collect virtual accounts · the webhooks above · test-mode payments to fire real events. Verify signatures. Test-mode webhooks point at the deployed webhook service (or an ngrok reserved domain during local dev — see §16).
+Customers · Invoices (`expire_by`) · Payment Links · Smart Collect virtual accounts · the webhooks above · test-mode payments to fire real events. Verify signatures. Test-mode webhooks point at the deployed webhook service (or an ngrok reserved domain during local dev, see §16).
 
 ---
 
@@ -154,9 +154,9 @@ Mix and delays calibrated so the untreated ledger lands near the published India
 
 ### 6.2 Arms
 
-- **Baseline** — fixed reminders at due, +7, +14; same channel; ignores replies. (What Razorpay reminders do today.)
-- **Baaki** — the full loop.
-- **Unguarded** (optional, cheap) — Baaki with guards disabled. Exists to show violation counts and the over-contact penalty biting. If it's more than a flag, skip it.
+- **Baseline**: fixed reminders at due, +7, +14; same channel; ignores replies. (What Razorpay reminders do today.)
+- **Baaki**: the full loop.
+- **Unguarded** (optional, cheap): Baaki with guards disabled. Exists to show violation counts and the over-contact penalty biting. If it's more than a flag, skip it.
 
 Holdout: 20% of invoices per seed assigned to Baseline by a seeded RNG.
 
@@ -164,7 +164,7 @@ Holdout: 20% of invoices per seed assigned to Baseline by a seeded RNG.
 
 10+ seeds. Report for each metric: mean, sd, min, max across seeds, plus per-persona breakdown. Metrics: ₹ collected by day 30/60/90, DSO, touches per ₹ collected, promise-kept rate, complaints, do-not-contact events, guard violations (must be 0 for Baaki).
 
-### 6.4 Sensitivity — publish the losing region
+### 6.4 Sensitivity: publish the losing region
 
 Grid over: `owner_persona lift ∈ {1.0, 1.15, 1.3}`, `promise_keep_prob ∈ {0.25, 0.5, 0.8}`, `over_contact.hazard_penalty ∈ {0, 0.25, 0.5}`, `reply_prob` scale ∈ {0.5×, 1×}. Report the cells where Baseline ≥ Baaki and say why (typically: replies rare and promises worthless → reading replies buys nothing, and waiting on promises costs days).
 
@@ -176,11 +176,11 @@ Render reply text from `{persona, intent, promise_date, dispute_reason, language
 
 ## 7. Evals
 
-**Reply understanding — 60 hand-labelled replies.** Written by you, in the Hinglish and English real buyers use, with labels `{intent, promise_date, dispute_reason}`. Ask two or three people who run small businesses to write ten each. Report precision/recall per intent and exact-match on promise dates. Keep the file in the repo. A 500-reply generator-labelled set can exist as a regression test, clearly named `synthetic_regression`, never quoted as accuracy.
+**Reply understanding: 60 hand-labelled replies.** Written by you, in the Hinglish and English real buyers use, with labels `{intent, promise_date, dispute_reason}`. Ask two or three people who run small businesses to write ten each. Report precision/recall per intent and exact-match on promise dates. Keep the file in the repo. A 500-reply generator-labelled set can exist as a regression test, clearly named `synthetic_regression`, never quoted as accuracy.
 
-**Decisions — 40 hand-written case files.** Each with a set of acceptable actions. Include ≥ 10 where the right answer is `schedule_wait` or `escalate_to_human`. Report accuracy and the "should-have-deferred" subset separately.
+**Decisions: 40 hand-written case files.** Each with a set of acceptable actions. Include ≥ 10 where the right answer is `schedule_wait` or `escalate_to_human`. Report accuracy and the "should-have-deferred" subset separately.
 
-**Guards — invariant suite** (tests over full sim runs):
+**Guards: invariant suite** (tests over full sim runs):
 
 - No touch outside window or on a holiday
 - Touches per invoice ≤ max; gaps ≥ min
@@ -191,7 +191,7 @@ Render reply text from `{persona, intent, promise_date, dispute_reason, language
 - Every campaign reaches a terminal state by end date
 - Every audit entry has a rationale and ≥ 1 evidence link
 
-**System — `evals/report.md`** generated by `pnpm evals:report`: arms × seeds table, sensitivity grid with losing cells highlighted, per-persona breakdown. This file is the first thing the README links to.
+**System: `evals/report.md`** generated by `pnpm evals:report`: arms × seeds table, sensitivity grid with losing cells highlighted, per-persona breakdown. This file is the first thing the README links to.
 
 ---
 
@@ -212,7 +212,7 @@ baaki/
   packages/core      ledger · guards · router · policy · agent · tools · memory · channels/whatsapp · razorpay · audit
   packages/sim       personas.yaml · engine (hazards, replies, penalties) · clock · holdout · text renderer
   packages/evals     replies_hand_labelled.jsonl (60) · cases_hand_written/ (40) · invariants.test.ts · report.ts
-  apps/dashboard     Next.js — Today, Case
+  apps/dashboard     Next.js, Today and Case
   apps/webhook       /webhooks/razorpay · /webhooks/whatsapp
   docs/              ARCHITECTURE.md · EVALS.md · FAILURES.md · STRETCH.md · PLAN.md (this file)
 ```
@@ -242,7 +242,7 @@ ar.audit.export();
 ## 10. Sandbox flow
 
 1. Razorpay test keys; test-mode webhooks → the deployed webhook URL (ngrok reserved domain if running locally).
-2. Meta Cloud API app with a Test Business Account; register your number + 3 friends; submit 2–3 utility templates.
+2. Meta Cloud API app with a Test Business Account; register your number + 3 friends; submit 2-3 utility templates.
 3. Seed: N customers, invoices with `expire_by`, one VA each; holdout assignment.
 4. Sim drives buyers: button presses and free text hit `/webhooks/whatsapp` (or the internal ingest for headless runs); payments are test-mode Payment Link payments that fire real webhooks. Headless mode for the 10-seed runs (no real WhatsApp); live mode for the demo.
 5. `tick()` per simulated day; 90 days in minutes.
@@ -258,17 +258,17 @@ ar.audit.export();
 4. **Today + Case screens.** *Gate: the core story (§14) can be screen-recorded without narration hacks.*
 5. **Report, README, FAILURES, video.**
 
-**Midpoint gate for voice:** if, at the halfway point of your calendar, steps 1–3 are not green, voice is cut and removed from every doc. If they are green, voice gets a strictly time-boxed attempt (§12); it enters the video only if the browser call works three times in a row.
+**Midpoint gate for voice:** if, at the halfway point of your calendar, steps 1-3 are not green, voice is cut and removed from every doc. If they are green, voice gets a strictly time-boxed attempt (§12); it enters the video only if the browser call works three times in a row.
 
 ---
 
 ## 12. Stretch, in order (each only after the previous is fully done)
 
 1. Story-so-far summaries with sentence-level evidence (if not already in core)
-2. `create_statement_link` — one link for all open invoices; touches-per-₹ should drop measurably; add to the report
+2. `create_statement_link`, one link for all open invoices; touches-per-₹ should drop measurably; add to the report
 3. Owner WhatsApp: morning brief + approve/skip via buttons
 4. Dispute split (`split_invoice`) with approval
-5. Voice — Gemini Live (native audio, speech-to-speech, Hindi) with in-call tools `record_promise`, `record_dispute`, `send_payment_link_now`, `set_do_not_call`; browser path first, Twilio phone path second; recording via Twilio call recording or browser MediaRecorder; consent line mandatory. See §16.
+5. Voice: Gemini Live (native audio, speech-to-speech, Hindi) with in-call tools `record_promise`, `record_dispute`, `send_payment_link_now`, `set_do_not_call`; browser path first, Twilio phone path second; recording via Twilio call recording or browser MediaRecorder; consent line mandatory. See §16.
 6. MSMED interest + 43B(h) notice behind Udyam flag and approval; `export_case_pack`
 7. Cash application for lumpy payments
 8. Payer score → suggested terms; forecast; Ask Baaki; `<BaakiBanner/>`; Sarvam/Gnani STT comparison against Gemini transcripts on 20 Hindi clips
@@ -288,7 +288,7 @@ Open with evidence, not lines. Order:
 5. How to run (headless sim in one command; live mode with the env vars).
 6. Architecture (one diagram, one paragraph), link to ARCHITECTURE.md.
 7. FAILURES.md link.
-8. What's not built (STRETCH.md link) — one line.
+8. What's not built (STRETCH.md link), one line.
 
 No taglines. No "slick." Describe the product in the same register as the eval report. The one sentence that is allowed: *Baaki adds a promise-and-dispute ledger, buyer memory, and guarded outreach on top of Razorpay Invoices, Payment Links and Smart Collect.*
 
@@ -302,8 +302,8 @@ One buyer, end to end, on WhatsApp. Voice is not in this story unless §11's gat
 
 | Time | Beat       | On screen                                                                                                                                                        | Say                                                                                                                                                                       | If it breaks |
 | ---- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| 0:00 | Open       | Today screen                                                                                                                                                     | "Baaki adds a ledger, memory and guarded outreach on top of Razorpay Invoices. One buyer, start to finish."                                                               | —           |
-| 0:15 | Problem    | The number 73                                                                                                                                                    | "Indian SMEs wait about 73 days to get paid. Razorpay Invoices stop knowing anything after 'sent'."                                                                       | —           |
+| 0:00 | Open       | Today screen                                                                                                                                                     | "Baaki adds a ledger, memory and guarded outreach on top of Razorpay Invoices. One buyer, start to finish."                                                               | n/a        |
+| 0:15 | Problem    | The number 73                                                                                                                                                    | "Indian SMEs wait about 73 days to get paid. Razorpay Invoices stop knowing anything after 'sent'."                                                                       | n/a        |
 | 0:30 | Today card | Sharma Traders, ₹1,80,000, 47 days; proposed: owner persona, WhatsApp, reissue + nudge; rationale: link expired, two prior owner-message responses; guard ticks | "The old link expired, so it re-issues and nudges from the owner's name. Every guard it passed is here." Press`a`.                                                      | Clip 1       |
 | 0:55 | Phone      | WhatsApp template + buttons + link on Phone A                                                                                                                    | "Utility template, buttons, live link."                                                                                                                                   | Clip 1       |
 | 1:10 | Reply      | Type*"Ramesh ko bolta hoon, Friday tak ho jayega"*                                                                                                             | "Free text, Hinglish."                                                                                                                                                    | Clip 2       |
@@ -311,12 +311,12 @@ One buyer, end to end, on WhatsApp. Voice is not in this story unless §11's gat
 | 1:50 | Silence    | Advance sim to Sat; Today shows the re-nudge proposal; rationale mentions the broken promise; router sent it to the case agent                                   | "Promise slipped. This one needed judgment, so the case agent decided, and wrote why."                                                                                    | Clip 3       |
 | 2:15 | Dispute    | Buyer taps "Raise a query", types*"80 units hi aaye the"* → `open_dispute` → outreach frozen → merchant notified                                          | "A dispute freezes everything and goes to a human. No agent argues with a buyer."                                                                                         | Clip 3       |
 | 2:40 | Paid       | Merchant resolves; pay the link with a test UPI ID;`payment_link.paid` → case closes; audit entry expands                                                     | "Razorpay says paid. It stops. Here's every action with its reason and the webhook it's tied to."                                                                         | Clip 4       |
-| 3:10 | Report     | `evals/report.md`: arms × seeds table, violations 0, per-persona; sensitivity grid with losing cells highlighted                                              | "500 invoices, 20% holdout on fixed reminders, 10 seeds. Mean and spread. Here's where we win, and here — low reply rates, worthless promises — is where we don't."     | Static image |
-| 3:55 | How        | Router code on screen for 10 seconds, then guards test names                                                                                                     | "Most decisions are rules. The model reads replies, drafts, and takes the cases that need judgment. Guards are pure functions and the test names are the stopping rules." | —           |
-| 4:20 | Broke      | FAILURES.md                                                                                                                                                      | Name three real things.                                                                                                                                                   | —           |
-| 4:40 | Close      | Face                                                                                                                                                             | "Razorpay is on both sides of millions of B2B relationships. A payer rating across merchants is yours to build; this is the per-merchant version."                        | —           |
+| 3:10 | Report     | `evals/report.md`: arms × seeds table, violations 0, per-persona; sensitivity grid with losing cells highlighted                                              | "500 invoices, 20% holdout on fixed reminders, 10 seeds. Mean and spread. Here's where we win, and here, on low reply rates and worthless promises, is where we don't."     | Static image |
+| 3:55 | How        | Router code on screen for 10 seconds, then guards test names                                                                                                     | "Most decisions are rules. The model reads replies, drafts, and takes the cases that need judgment. Guards are pure functions and the test names are the stopping rules." | n/a        |
+| 4:20 | Broke      | FAILURES.md                                                                                                                                                      | Name three real things.                                                                                                                                                   | n/a        |
+| 4:40 | Close      | Face                                                                                                                                                             | "Razorpay is on both sides of millions of B2B relationships. A payer rating across merchants is yours to build; this is the per-merchant version."                        | n/a        |
 
-If voice passed its gate, insert one 45-second beat after 1:50: buyer calls back in the browser, speaks Hindi, `record_promise` fires, the chip appears — and cut the "Silence" beat to 15 seconds.
+If voice passed its gate, insert one 45-second beat after 1:50: buyer calls back in the browser, speaks Hindi, `record_promise` fires, the chip appears, and cut the "Silence" beat to 15 seconds.
 
 ### 14.2 Live panel (10 minutes)
 
@@ -324,12 +324,12 @@ Drive from the Case screen. Let a panelist hold Phone A and reply however they l
 
 Expected questions, one-line answers:
 
-- *Your simulator picks the winner.* — Personas are rule-based with hidden parameters, documented in `personas.yaml`; the model only renders reply text. 10 seeds, variance reported, losing cells published. The agent can only win by restraint and by reading replies correctly.
-- *Where's the AI?* — Reply understanding, drafting, the ~20% of decisions the router escalates, and the case summaries. The rest is arithmetic on purpose.
-- *Agent Studio does invoice follow-up.* — It calls. This is the ledger, memory and guard layer that call would need.
-- *Is the contact window legally required?* — No; it's merchant policy. The statutory levers (MSMED interest, 43B(h)) are in STRETCH.md and would sit behind Udyam eligibility and approval.
-- *Production WhatsApp?* — Business verification, likely a BSP; documented, not built.
-- *What broke?* — Three real answers from FAILURES.md.
+- *Your simulator picks the winner.* Personas are rule-based with hidden parameters, documented in `personas.yaml`; the model only renders reply text. 10 seeds, variance reported, losing cells published. The agent can only win by restraint and by reading replies correctly.
+- *Where's the AI?* Reply understanding, drafting, the ~20% of decisions the router escalates, and the case summaries. The rest is arithmetic on purpose.
+- *Agent Studio does invoice follow-up.* It calls. This is the ledger, memory and guard layer that call would need.
+- *Is the contact window legally required?* No; it's merchant policy. The statutory levers (MSMED interest, 43B(h)) are in STRETCH.md and would sit behind Udyam eligibility and approval.
+- *Production WhatsApp?* Business verification, likely a BSP; documented, not built.
+- *What broke?* Three real answers from FAILURES.md.
 
 ### 14.3 Prep and fallbacks
 
@@ -359,7 +359,7 @@ Prep: webhook and voice services deployed (or ngrok reserved domain); templates 
 ### 16.1 Models
 
 - **Text jobs** (reply understanding, drafting, case agent, story-so-far): Gemini API `generateContent` on `gemini-2.5-flash` (or the current Flash). Reply understanding uses `responseSchema` so the output is strict JSON; the case agent uses function declarations for the six write tools and four read tools; your code enforces the one-write-action rule, not the model. Wrap behind the `llm` interface so evals run against a fake.
-- **Voice**: Gemini Live API — a stateful WebSocket, 16 kHz PCM in, 24 kHz PCM out, native audio speech-to-speech with tool use, VAD/barge-in, and transcripts of both sides. Native audio models pick the spoken language themselves; restrict to Hindi/Hinglish/English in the system instruction. Use the current stable native-audio model (`gemini-2.5-flash-native-audio-latest` at time of writing; check the model page).
+- **Voice**: Gemini Live API, a stateful WebSocket, 16 kHz PCM in, 24 kHz PCM out, native audio speech-to-speech with tool use, VAD/barge-in, and transcripts of both sides. Native audio models pick the spoken language themselves; restrict to Hindi/Hinglish/English in the system instruction. Use the current stable native-audio model (`gemini-2.5-flash-native-audio-latest` at time of writing; check the model page).
 - No separate STT/TTS in core voice. Sarvam/Gnani remain a stretch comparison only.
 
 ### 16.2 Two call paths, one voice service

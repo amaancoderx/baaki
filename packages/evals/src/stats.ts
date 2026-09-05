@@ -13,7 +13,7 @@ export const pm = (s: Summary, digits = 1): string =>
   `${s.mean.toFixed(digits)} ± ${s.sd.toFixed(digits)}`;
 
 export const range = (s: Summary, digits = 1): string =>
-  `${s.min.toFixed(digits)}–${s.max.toFixed(digits)}`;
+  `${s.min.toFixed(digits)}-${s.max.toFixed(digits)}`;
 
 /** Crore/lakh for readability; the panel reads Indian figures faster this way. */
 export function croreLakh(paise: number): string {

@@ -27,7 +27,7 @@ const num = (n: number): string =>
   : n < 1000 ? `${HI[Math.floor(n / 100)]} sau${n % 100 ? " " + num(n % 100) : ""}`
   : String(n);
 
-/** "ek lakh assi hazaar rupaye" — digits read aloud in English sound like a machine. */
+/** "ek lakh assi hazaar rupaye". Digits read aloud in English sound like a machine. */
 export function spokenAmount(paise: number): string {
   const r = Math.round(paise / 100);
   const lakh = Math.floor(r / 100000), rest = r % 100000;

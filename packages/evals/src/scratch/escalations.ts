@@ -25,5 +25,5 @@ const reasons: Record<string, number> = {};
 for (const v of perInvoice.values()) for (const e of v) { const k = e.split(":")[1]!; reasons[k] = (reasons[k] ?? 0) + 1; }
 for (const [k, n] of Object.entries(reasons).sort((a, b) => b[1] - a[1])) console.log(`    ${String(n).padStart(5)}  ${k}`);
 const worst = [...perInvoice.entries()].sort((a, b) => b[1].length - a[1].length)[0]!;
-console.log(`\n  worst invoice ${worst[0]} — first 8 of ${worst[1].length}:`);
+console.log(`\n  worst invoice ${worst[0]}, first 8 of ${worst[1].length}:`);
 for (const e of worst[1].slice(0, 8)) console.log(`    ${e}`);

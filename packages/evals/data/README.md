@@ -9,7 +9,7 @@ cases, so it measures self-consistency as much as capability.
 
 It exists to catch regressions and to make the harness runnable today.
 
-## `replies_hand_labelled.jsonl` — not yet written
+## `replies_hand_labelled.jsonl`, not yet written
 
 The real set. 60 replies in the Hinglish and English buyers actually use, with
 labels, written by people who run small businesses. Plan §7: ask two or three

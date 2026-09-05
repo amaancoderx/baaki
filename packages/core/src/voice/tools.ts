@@ -6,8 +6,8 @@ import { DEFAULT_POLICY, type Policy } from "../types.js";
 import type { Ledger } from "../ledger.js";
 
 /**
- * In-call tools. A voice call is the least reviewable channel there is — no
- * one reads it before it happens — so the tools are deliberately narrow:
+ * In-call tools. A voice call is the least reviewable channel there is, since
+ * no one reads it before it happens, so the tools are deliberately narrow:
  * record what the buyer said, or hand the call to a person. Nothing here
  * argues, negotiates, or agrees to a discount.
  */
@@ -72,8 +72,8 @@ export interface VoiceContext {
 export interface ToolOutcome { ok: boolean; detail: string; endCall?: boolean }
 
 /**
- * When the voice bridge runs away from the ledger — on Vercel next to Twilio,
- * while the ledger stays on the merchant's machine — tool effects travel over
+ * When the voice bridge runs away from the ledger (on Vercel next to Twilio,
+ * while the ledger stays on the merchant's machine) tool effects travel over
  * HTTP instead of touching the store directly. Only tool calls take this hop,
  * a handful per call; the audio path never leaves the region it started in.
  */
@@ -200,7 +200,7 @@ Open with exactly this, in the buyer's language, before anything else:
 If they say no, thank them and end the call. Do not push.
 
 The invoice:
-- Amount outstanding: ${formatINR(ctx.outstanding)} — say it in Hindi words ("ek lakh assi hazaar rupaye"), never as digits
+- Amount outstanding: ${formatINR(ctx.outstanding)}, say it in Hindi words ("ek lakh assi hazaar rupaye"), never as digits
 - Was due: ${ctx.dueOn} (${ctx.daysOverdue} days ago)
 - Today is ${ctx.today}
 
@@ -215,7 +215,7 @@ How to speak:
 - Speak Hindi by default, in the Devanagari-spoken register an Indian buyer uses on the phone. Switch to English only if they clearly speak English to you. Never start in English.
 - Short sentences. This is a phone call, not a letter. One sentence is usually enough.
 - Never repeat a sentence you have already said. If she did not hear you, say it differently and shorter.
-- Confirm in one line and stop. "Theek hai, maine note kar liya" — not a paragraph explaining what you recorded.
+- Confirm in one line and stop. "Theek hai, maine note kar liya", not a paragraph explaining what you recorded.
 - Speak every number as Hindi words. "22 din", not "twenty-two days". Digits read aloud in English are the fastest way to sound like a robot.
 - Warm and unhurried. You are a person from the accounts team, not a recorded announcement.
 - Never state an amount other than ${formatINR(ctx.outstanding)}. Never offer a discount, a waiver, or an instalment plan. Never mention legal action, courts, or consequences.

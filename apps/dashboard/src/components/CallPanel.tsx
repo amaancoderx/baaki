@@ -8,7 +8,7 @@ type Line = { who: string; text: string };
 
 /**
  * Browser call. Mic is captured at whatever rate the device gives, downsampled
- * to the 16 kHz Gemini Live expects, and replies come back as 24 kHz PCM which
+ * to the 16 kHz the live model expects, and replies come back as 24 kHz PCM which
  * is queued so consecutive chunks play without a gap.
  */
 export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerName: string }) {
@@ -150,7 +150,7 @@ export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerNa
             ))}
             {tools.map((t, i) => (
               <div key={`t${i}`} className="chip chip-accent" style={{ alignSelf: "flex-start" }}>
-                ✓ {t.name.replace(/_/g, " ")} — {t.outcome}
+                ✓ {t.name.replace(/_/g, " ")}: {t.outcome}
               </div>
             ))}
           </div>

@@ -17,7 +17,7 @@ const SUBSTATE: Record<string, { label: string; cls: string; note: string }> = {
 };
 
 const ACTOR: Record<string, string> = {
-  fast: "Rule", agent: "Gemini agent", human: "Person", webhook: "Razorpay / WhatsApp",
+  fast: "Rule", agent: "Baaki AI", human: "Person", webhook: "Razorpay / WhatsApp",
 };
 
 const ACTION: Record<string, string> = {

@@ -23,5 +23,5 @@ export const SIM_CHANGELOG: { version: string; change: string }[] = [
 /** One line for the top of every generated report. */
 export function stamp(): string {
   const latest = SIM_CHANGELOG[SIM_CHANGELOG.length - 1]!;
-  return `Simulator \`${SIM_VERSION}\` — ${latest.change}`;
+  return `Simulator \`${SIM_VERSION}\`: ${latest.change}`;
 }

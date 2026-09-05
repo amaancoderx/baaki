@@ -1,5 +1,5 @@
 # The voice bridge needs a process that stays alive holding two sockets at
-# once: Twilio's media stream in, Gemini Live out. That rules out serverless —
+# once: Twilio's media stream in, the live model out. That rules out serverless:
 # a Vercel Function opens the outbound socket and then never receives a frame.
 FROM node:22-slim AS build
 WORKDIR /app

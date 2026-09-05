@@ -23,14 +23,14 @@ Writing messages:
 
 When you are shown what the standing policy would do, that is your default and
 it was tuned against real outcomes. Take it unless this case contains something
-the policy cannot see — a date the buyer stated, a dispute they raised, a claim
+the policy cannot see: a date the buyer stated, a dispute they raised, a claim
 they already paid, a request to stop, or a pattern in the touch log that the
 policy has no field for. If you override it, say in one clause which piece of
 information justified doing so. Overriding because a different action feels more
 careful is not a reason; the policy's caution is already priced in.
 
 Timing is not your job. A guard layer decides whether a message may go out
-right now — the contact window, holidays, Sundays, the minimum gap since the
+right now: the contact window, holidays, Sundays, the minimum gap since the
 last message. You do not need to reason about what day or hour it is, and you
 should not use schedule_wait merely because it might be outside working hours;
 the guards will hold the message and it will go at the next permitted moment.
@@ -39,7 +39,7 @@ contact would be premature.
 
 When you are shown what the standing policy would do, that is your default and
 it was tuned against real outcomes. Take it unless this case contains something
-the policy cannot see — a date the buyer stated, a dispute they raised, a claim
+the policy cannot see: a date the buyer stated, a dispute they raised, a claim
 they already paid, a request to stop, or a pattern in the touch log that the
 policy has no field for. If you override it, say in one clause which piece of
 information justified doing so. Overriding because a different action feels more
@@ -61,7 +61,7 @@ export function renderCase(c: CaseFile): string {
   lines.push(`Buyer: ${c.buyer.name}`);
   lines.push("");
   lines.push(`Invoice ${inv.id}: ${formatINR(inv.amount)} billed, ${formatINR(inv.amountPaid)} paid, ${formatINR(outstanding)} outstanding.`);
-  lines.push(`Issued ${formatCivilShort(inv.issuedOn)}, due ${formatCivilShort(inv.dueOn)} — ${c.daysOverdue} days overdue.`);
+  lines.push(`Issued ${formatCivilShort(inv.issuedOn)}, due ${formatCivilShort(inv.dueOn)}, ${c.daysOverdue} days overdue.`);
   lines.push(`State: ${inv.state} / ${inv.substate}${inv.promisedFor ? ` (promised by ${inv.promisedFor})` : ""}${inv.disputeReason ? ` (dispute: ${inv.disputeReason})` : ""}`);
   lines.push(`Payment link: ${inv.linkExpiresOn ? (linkLive ? `live until ${formatCivilShort(inv.linkExpiresOn)}` : `EXPIRED on ${formatCivilShort(inv.linkExpiresOn)}`) : "none"}`);
   lines.push(`Campaign ends ${formatCivilShort(inv.campaignEndsOn)}.`);
@@ -72,7 +72,7 @@ export function renderCase(c: CaseFile): string {
   lines.push(`  promises kept: ${m.counts.promisesMade === 0 ? "none made yet" : `${m.counts.promisesKept} of ${m.counts.promisesMade}`}`);
   lines.push(`  replies per message sent: ${m.repliesPerTouch.whatsapp.toFixed(2)}`);
   lines.push(`  disputes raised: ${m.counts.disputesRaised}`);
-  lines.push(`  language: ${m.language}${m.doNotContact ? " — DO NOT CONTACT is set" : ""}`);
+  lines.push(`  language: ${m.language}${m.doNotContact ? ", DO NOT CONTACT is set" : ""}`);
   lines.push("");
 
   if (c.touches.length === 0 && c.replies.length === 0) {
@@ -88,7 +88,7 @@ export function renderCase(c: CaseFile): string {
   lines.push("");
 
   if (c.rulesProposal) {
-    lines.push(`The standing policy would: ${c.rulesProposal.action} — ${c.rulesProposal.reason}`);
+    lines.push(`The standing policy would: ${c.rulesProposal.action}, because ${c.rulesProposal.reason}`);
     lines.push("");
   }
   lines.push(`Policy: at most ${c.policy.maxTouches} messages per invoice, at least ${c.policy.minGapDays} days apart. Delivery timing is handled by the guards, not by you.`);

@@ -57,7 +57,7 @@ export interface SimOptions {
    * What a person does with the cases the agent hands them.
    *
    * Without this the simulator has no human at all: escalate_to_human sets
-   * human_hold, automation stops, and nobody ever picks the case up — so
+   * human_hold, automation stops, and nobody ever picks the case up, so
    * handing a case over is indistinguishable from abandoning it. Any policy
    * that escalates more then looks worse purely for being careful, which is a
    * property of the model rather than of the policy.
@@ -99,7 +99,7 @@ export interface PersonaOverrides {
   replyProbScale?: number;
   /**
    * Scales how much any touch lifts the payment hazard: lift' = 1 + (lift-1)*s.
-   * At 0, outreach does not move payment at all — the axis along which any
+   * At 0, outreach does not move payment at all. This is the axis along which any
    * outreach product, Baaki included, has nothing to sell.
    */
   touchLiftScale?: number;
@@ -116,7 +116,7 @@ export interface SimMetrics {
   /**
    * Amount-weighted days to settlement over paid invoices only. A large invoice
    * paid late should weigh more than a small one, and censoring unpaid invoices
-   * at the horizon quietly mixes "slow" with "never" — so the unpaid share is
+   * at the horizon quietly mixes "slow" with "never", so the unpaid share is
    * reported beside it rather than folded in.
    */
   dsoPaidWeighted: number;
@@ -172,8 +172,8 @@ export interface SimEvent {
 const MILESTONES = [30, 60, 90];
 
 /**
- * Deterministic trade names, indexed by buyer number. Cosmetic only — nothing
- * reads these — but a dashboard full of "Buyer 37" reads as a fixture, and the
+ * Deterministic trade names, indexed by buyer number. Cosmetic only, since
+ * nothing reads these, but a dashboard full of "Buyer 37" reads as a fixture, and the
  * demo is screen-recorded from real runs.
  */
 const FIRM_NAMES = [
@@ -528,7 +528,7 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
           events.push({ day, date: today, kind: "payment", invoiceId: inv.id, detail: { amount: outstanding, viaHuman: true } });
         }
         // A person who could not recover the case does not close it. The
-        // invoice stays open and the buyer may still pay unprompted — closing
+        // invoice stays open and the buyer may still pay unprompted. Closing
         // it removed them from the payment draw entirely, which punished
         // whichever policy escalated more and reintroduced the exact bias the
         // human queue exists to remove.

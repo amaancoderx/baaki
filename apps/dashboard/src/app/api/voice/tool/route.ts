@@ -6,8 +6,8 @@ export const maxDuration = 60;
 
 /**
  * Called by the voice bridge, which runs beside Twilio and does not hold the
- * ledger. Only tool effects come this way — a promise recorded, a dispute
- * opened — never audio.
+ * ledger. Only tool effects come this way (a promise recorded, a dispute
+ * opened), never audio.
  */
 export async function POST(req: Request) {
   const body = (await req.json()) as {

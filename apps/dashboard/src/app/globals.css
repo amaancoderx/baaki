@@ -1,4 +1,4 @@
-/* Baaki dashboard — claude-design tokens, light mode only. */
+/* Baaki dashboard: claude-design tokens, light mode only. */
 
 /*
  * The claude-design system specifies Anthropic Serif / Sans / Mono. Those
@@ -16,7 +16,7 @@
  */
 
 :root {
-  /* palette — every color in this file traces to the claude-design token sheet */
+  /* palette: every color in this file traces to the claude-design token sheet */
   --bg: #ffffff;
   --surface: #f9ecec;
   --ink: #141413;
@@ -388,7 +388,7 @@ button { font: inherit; cursor: pointer; background: none; border: none; color: 
 }
 .explain strong { font-weight: 600; color: var(--ink); }
 .explain .tag {
-  display: inline-block;
+  display: block;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -556,4 +556,65 @@ button { font: inherit; cursor: pointer; background: none; border: none; color: 
 
 @media (max-width: 480px) {
   .assistant { right: 8px; bottom: 8px; width: calc(100vw - 16px); }
+}
+
+/* ---------- audit ---------- */
+
+.money-band { padding: 18px 20px; }
+.money-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin-bottom: 14px;
+}
+.money-figures > div { display: flex; flex-direction: column; gap: 2px; }
+.money-big {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(31, 30, 29, 0.07);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  transition: width 500ms var(--ease);
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.legend-item { display: flex; align-items: baseline; gap: 8px; }
+.legend-text { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 0 2px 6px;
+}
+
+.audit-row { padding: 10px 14px; border-top: 1px solid var(--hairline); }
+.audit-row:first-child { border-top: none; }
+
+@media (max-width: 560px) {
+  .money-figures { gap: 20px; }
+  .money-big { font-size: 22px; }
 }

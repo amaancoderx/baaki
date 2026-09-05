@@ -5,15 +5,16 @@ import { useEffect, useRef, useState } from "react";
 interface Msg { role: "user" | "model"; text: string }
 
 /**
- * The screens are English so they can be scanned. Explaining why the system did
- * something is a different job, and it happens here, in the language a merchant
- * would actually ask the question in.
+ * The screens are English so they can be scanned at a glance. Explaining why the
+ * system did something is a different job, and it happens here, in the language
+ * a merchant would actually ask the question in. So the chrome around this panel
+ * is English and only the conversation is Hinglish.
  */
 const OPENERS = [
-  "Aaj kya karna hai?",
-  "Sabse zyada paisa kispe atka hai?",
-  "Guards kya hain?",
-  "Agent ne pichhli baar kya kiya?",
+  "What should I do today?",
+  "Where is most of my money stuck?",
+  "What did the agent do last?",
+  "What are guards?",
 ];
 
 export function Assistant() {
@@ -41,10 +42,10 @@ export function Assistant() {
       const j = await r.json();
       setMsgs([...next, {
         role: "model",
-        text: j.reply ?? `Sorry, kuch dikkat aa gayi. ${j.error ?? ""}`.trim(),
+        text: j.reply ?? `Sorry, jawab nahi de paya. ${j.error ?? ""}`.trim(),
       }]);
     } catch {
-      setMsgs([...next, { role: "model", text: "Connect nahi ho paya. Thodi der baad try karo." }]);
+      setMsgs([...next, { role: "model", text: "Connect nahi ho paya. Thodi der baad try karein." }]);
     } finally {
       setBusy(false);
     }
@@ -52,9 +53,9 @@ export function Assistant() {
 
   if (!open) {
     return (
-      <button className="assistant-fab" onClick={() => setOpen(true)} aria-label="Ask about this system">
+      <button className="assistant-fab" onClick={() => setOpen(true)} aria-label="Ask Baaki AI">
         <span className="assistant-fab-dot" />
-        Puchho
+        Ask Baaki AI
       </button>
     );
   }
@@ -63,9 +64,9 @@ export function Assistant() {
     <div className="assistant">
       <div className="assistant-head">
         <div>
-          <div style={{ fontWeight: 500, fontSize: 14 }}>Baaki se puchho</div>
+          <div style={{ fontWeight: 500, fontSize: 14 }}>Ask Baaki AI</div>
           <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-            Hinglish mein poochho — ye aapke ledger se hi jawab dega
+            Answers in Hinglish, from your ledger
           </div>
         </div>
         <button className="btn btn-quiet" onClick={() => setOpen(false)} aria-label="Close">✕</button>
@@ -75,8 +76,9 @@ export function Assistant() {
         {msgs.length === 0 && (
           <>
             <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-              Main aapke invoices, agent ke decisions aur guards ke baare mein bata
-              sakta hoon. Kuch bhej nahi sakta — sirf samjha sakta hoon.
+              Ask about your invoices, what the agent decided, or why it waited.
+              Every answer comes from the ledger. It can explain, but it cannot
+              send anything or change anything.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
               {OPENERS.map((o) => (
@@ -90,21 +92,21 @@ export function Assistant() {
         {msgs.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>{m.text}</div>
         ))}
-        {busy && <div className="bubble model"><span className="spinner" /> soch raha hoon…</div>}
+        {busy && <div className="bubble model"><span className="spinner" /> soch raha hoon</div>}
         <div ref={endRef} />
       </div>
 
       <div className="assistant-foot">
         <input
           className="input"
-          placeholder="Kuch bhi poochho…"
+          placeholder="Ask anything"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send(input)}
           disabled={busy}
         />
         <button className="btn btn-primary" onClick={() => send(input)} disabled={busy || !input.trim()}>
-          Bhejo
+          Send
         </button>
       </div>
     </div>

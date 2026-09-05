@@ -8,8 +8,8 @@ import { runVoiceTool, VOICE_TOOLS, type VoiceContext } from "./tools.js";
 /**
  * Turn-based phone calls over plain HTTPS webhooks.
  *
- * The Media Streams path in live.ts is better — real duplex audio with
- * barge-in — but it needs a WebSocket endpoint Twilio can reach, and free
+ * The Media Streams path in live.ts is better, giving real duplex audio with
+ * barge-in, but it needs a WebSocket endpoint Twilio can reach, and free
  * tunnels either reject Twilio's upgrade (Cloudflare quick tunnels, 31951) or
  * fall over mid-demo (localtunnel). This path needs nothing but ordinary HTTPS
  * POSTs, so it runs anywhere the webhook service already runs.

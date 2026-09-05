@@ -19,7 +19,7 @@ ends in exactly one action and one audit entry.
 | `packages/core` | ledger, memory, guards, router, fast-path policy, drafts, executor, audit |
 | `packages/sim` | personas, hazard engine, RNG streams, reply renderer, snapshot generator |
 | `packages/evals` | invariant suite over full runs, report generator, statistics |
-| `apps/dashboard` | Next.js — Today and Case |
+| `apps/dashboard` | Next.js, Today and Case |
 
 ## Ledger
 
@@ -58,7 +58,7 @@ screen labels each case `rules` or `case agent`, and the reason is on the card.
 ## Guards
 
 Nine pure functions of `(case, action, now)`. They run at **execution** time, not
-proposal time — a decision made at 17:58 that arrives at 18:01 does not go out.
+proposal time, so a decision made at 17:58 that arrives at 18:01 does not go out.
 
 `stop_on_paid` · `do_not_contact` · `campaign_end` · `no_contact_while_held` ·
 `contact_window` · `max_touches` · `min_gap_days` · `whatsapp_24h_window` ·
@@ -78,7 +78,7 @@ same action, which is what makes the holdout comparison meaningful.
 
 Rung gaps widen as the ladder climbs, and widen again for buyers who have never
 replied. A buyer who has ignored `silentTouchCap` messages goes to a human
-rather than getting another. All three came out of measurement — see
+rather than getting another. All three came out of measurement. See
 `docs/FAILURES.md` §4 and `evals/report.md` §2b.
 
 ## Case agent
@@ -107,7 +107,7 @@ fast-path decision. There is no privileged route.
 `packages/core/src/understand.ts`. Free text in, `{intent, promiseDate,
 disputeReason, confidence}` out, under a response schema.
 
-Buttons never come through here — their payload carries the meaning exactly,
+Buttons never come through here, because their payload carries the meaning exactly,
 which is most of why the ladder uses them. Roughly 30% of replies are buttons.
 
 `normaliseParse` enforces what the schema cannot: a `promise` with no date, a
@@ -127,7 +127,7 @@ Export is JSON or CSV.
 ## Simulator
 
 Buyer personas are rule-based parameter sets in
-`packages/sim/src/personas.yaml`, hidden from the agent by construction — the
+`packages/sim/src/personas.yaml`, hidden from the agent by construction: the
 `CaseFile` type has no field that could carry them. The model's only role in the
 simulator is rendering the surface text of a reply whose intent the rules already
 sampled.
@@ -141,13 +141,13 @@ arm they landed in. See `docs/FAILURES.md` §2.
 
 Two paths, and the difference is audible.
 
-**Real-time** (`deploy/fly/server.ts`) — Twilio Media Streams to Gemini Live.
+**Real-time** (`deploy/fly/server.ts`) runs Twilio Media Streams into Gemini Live.
 The model hears the caller and answers in its own voice, so no speech
 recognition or text-to-speech sits in between. mu-law 8k in, PCM 16k to the
 model, 24k back, paced to 20 ms frames because Twilio drops oversized payloads.
 Barge-in clears queued audio so an abandoned turn is not played over the buyer.
 
-**Turn-based** (`packages/core/src/voice/gather.ts`) — Twilio's recogniser and
+**Turn-based** (`packages/core/src/voice/gather.ts`) puts Twilio's recogniser and
 text-to-speech either side of Gemini. Runs anywhere, needs no WebSocket, sounds
 synthetic and mishears Hindi. It exists because real-time needs a host that runs
 a persistent process, and it is what answers if the bridge is unreachable.
@@ -156,7 +156,7 @@ a persistent process, and it is what answers if the bridge is unreachable.
 the same audit trail: a promise made on a call is the same object as a promise
 made in a chat.
 
-The tools are deliberately narrow — `record_promise`, `record_dispute`,
+The tools are deliberately narrow: `record_promise`, `record_dispute`,
 `send_payment_link_now`, `set_do_not_call`, `escalate_to_human`. A call is the
 least reviewable channel there is, so the agent records what was said or hands
 over. It does not argue a dispute, offer a discount, or claim a payment arrived.

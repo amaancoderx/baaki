@@ -127,7 +127,7 @@ export interface CaseFile {
   nextRung: Rung;
   /**
    * When a decider last acted on this invoice. A reply is "handled" once a
-   * decision postdates it, even a decision that sends nothing — otherwise a
+   * decision postdates it, even a decision that sends nothing. Otherwise a
    * case answered with schedule_wait re-escalates to the agent every single
    * day for the life of the promise.
    */
@@ -140,7 +140,7 @@ export interface CaseFile {
    * Without it the two are not comparable: the rules were tuned against these
    * buyers by ablation and the agent was not, so the agent starts from a worse
    * prior and its caution reads as a deficiency. Given the proposal, the
-   * question becomes the useful one — does the case contain information the
+   * question becomes the useful one: does the case contain information the
    * rules cannot use?
    */
   rulesProposal?: { action: string; reason: string };
@@ -170,8 +170,8 @@ export interface Decision {
   /**
    * When this case should be looked at again. Until then the decision stands
    * and the router will not re-escalate it. Without this the same unchanged
-   * case went to the agent every tick — 18.7 times per invoice, worst case 45
-   * consecutive days of identical reasoning — which is both a cost problem and
+   * case went to the agent every tick, 18.7 times per invoice, worst case 45
+   * consecutive days of identical reasoning, which is both a cost problem and
    * wrong: the agent already said what to do.
    */
   nextReviewAt?: CivilDate;

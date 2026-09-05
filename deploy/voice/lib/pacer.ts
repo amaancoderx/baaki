@@ -1,7 +1,7 @@
 /**
  * Outbound audio pacing for Twilio Media Streams.
  *
- * Gemini emits audio in chunks of whatever size a turn produced — often
+ * The model emits audio in chunks of whatever size a turn produced, often
  * hundreds of milliseconds at once. Twilio expects a steady stream of 20 ms
  * mu-law frames and drops oversized payloads, which is heard as a sentence
  * stopping halfway through. This accumulates whatever arrives and releases it

@@ -76,7 +76,7 @@ export class LiveSession {
             // single clearest tell that they are talking to a machine.
             // Tuned for a phone line, not a headset. HIGH start-sensitivity
             // treated line noise as the buyer speaking, so the model kept
-            // abandoning and restarting its turn — heard as repeated
+            // abandoning and restarting its turn, heard as repeated
             // sentences. LOW start with a normal end and a shorter silence
             // window is both calmer and quicker to answer.
             realtimeInputConfig: {

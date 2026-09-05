@@ -2,11 +2,11 @@
 
 Every other run in this repository hands the ledger the buyer's true intent.
 That gives the policy perfect comprehension for free, which flatters the
-behaviour it depends on most — believing a buyer and waiting — and hides its
+behaviour it depends on most, believing a buyer and waiting, and hides its
 most expensive failure: freezing outreach on a promise nobody made.
 
 10 seeds, 800 invoices, 120-day horizon, 50/50 split.
-The baseline arm ignores replies entirely, so mishearing cannot touch it —
+The baseline arm ignores replies entirely, so mishearing cannot touch it,
 which is what makes the delta readable.
 
 | Parser | Baseline | Baaki | Δ pp | Misheard | Days frozen on a false promise | Opt-outs missed |
@@ -28,7 +28,7 @@ which is what makes the delta readable.
 ## What it costs to be wrong
 
 Moving from perfect comprehension to the error profile observed in
-`evals/replies.md` costs **0.01pp** — the difference between
+`evals/replies.md` costs **0.01pp**, the difference between
 3.04pp and 3.03pp. Every collection figure elsewhere in this
 repository is measured at the top of that range and should be read as an
 upper bound.
@@ -41,8 +41,8 @@ A missed "stop" is the only route by which a real do-not-contact violation
 can enter this system: every other guard is a pure function that cannot be
 talked out of its answer, but a guard can only honour a flag it was told about.
 
-- At 5%, **0.0 violations per run** — buyers messaged after asking not to be.
-- At 15%, **0.0 violations per run** — buyers messaged after asking not to be.
+- At 5%, **0.0 violations per run**, meaning buyers messaged after asking not to be.
+- At 15%, **0.0 violations per run**, meaning buyers messaged after asking not to be.
 
 This is why the number is reported on its own rather than folded into an
 accuracy figure. 87.5% intent accuracy sounds acceptable; "we messaged
@@ -51,6 +51,6 @@ accuracy figure. 87.5% intent accuracy sounds acceptable; "we messaged
 ## The product change this argues for
 
 A promise heard at low confidence should not freeze outreach for a week on
-a guess. It should ask: one message, two buttons, "Friday 11 Sep tak — sahi
+a guess. It should ask: one message, two buttons, "Friday 11 Sep tak, sahi
 hai?" That converts an expensive silent failure into a cheap question, and it
 is the change this table exists to justify. It is not built yet.

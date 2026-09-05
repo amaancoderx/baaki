@@ -1,4 +1,5 @@
 import { AuditLog, type GuardResult } from "./audit.js";
+import { formatINR } from "./money.js";
 import { computeMemory, emptyMemory } from "./memory.js";
 import { addDays, daysBetween, istParts, systemClock, type CivilDate, type Clock } from "./time.js";
 import type {
@@ -304,7 +305,7 @@ export class Ledger {
         "Razorpay confirmed payment in full. Campaign stops.", [pay.evidence, pay.id], pay.ts);
     } else {
       this.#audit(inv.id, "webhook", "none", { amount: p.amount, outstanding: inv.amount - inv.amountPaid },
-        `Partial payment received. ${inv.amount - inv.amountPaid} paise still outstanding.`, [pay.evidence, pay.id], pay.ts);
+        `Partial payment received. ${formatINR(inv.amount - inv.amountPaid)} still outstanding.`, [pay.evidence, pay.id], pay.ts);
     }
     this.#recomputeMemory(inv.buyerId);
     return pay;
@@ -344,8 +345,8 @@ export class Ledger {
   // -- persistence ----------------------------------------------------------
 
   /**
-   * Whole-ledger snapshot. The live app runs across separate processes — a
-   * webhook delivery, a dashboard request, a tick — so state has to outlive
+   * Whole-ledger snapshot. The live app runs across separate processes (a
+   * webhook delivery, a dashboard request, a tick), so state has to outlive
    * any one of them. Audit entries are included and never rewritten on load.
    */
   toJSON(): LedgerSnapshot {
