@@ -1,5 +1,5 @@
 import {
-  Baaki, LIVE_POLICY, RedisLedgerStore, gemini, razorpay, syntheticContacts,
+  Baaki, LIVE_POLICY, RedisLedgerStore, emailSender, gemini, razorpay, syntheticContacts,
   systemClock, whatsapp, type Clock, type Contact, type Policy, type VoiceCaller,
 } from "@baaki/core";
 import { Redis } from "@upstash/redis";
@@ -119,6 +119,11 @@ export async function baaki(opts: { origin?: string } = {}): Promise<Baaki> {
     policy: p,
     clock: clk,
     ...(caller ? { voice: caller } : {}),
+    // Personalised outbound email, active the moment a domain and a Resend key
+    // exist. Until then follow-up emails ride Razorpay's branded reminder.
+    ...(process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? {
+      email: emailSender({ apiKey: process.env.RESEND_API_KEY, from: process.env.EMAIL_FROM }),
+    } : {}),
     ...(hasRzp ? {
       razorpay: razorpay({
         keyId: process.env.RAZORPAY_KEY_ID!,

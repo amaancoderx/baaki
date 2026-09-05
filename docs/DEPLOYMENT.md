@@ -104,3 +104,14 @@ Inbound Parse destination to the endpoint URL with the token.
 Buyers are matched by sender address against the email on the invoice, and the
 reply attaches to their earliest-due open invoice. Mail from an address not on
 file is ignored rather than guessed at.
+
+
+## Personalised outbound email
+
+Set `RESEND_API_KEY` and `EMAIL_FROM` (an address on a domain verified with
+Resend) and every follow-up email carries the same drafted text as the
+WhatsApp, with the live link, from the merchant's own address. Unset, the
+email leg falls back to Razorpay's branded reminder. The same domain, routed
+through Cloudflare Email Routing, feeds replies back into
+`/api/webhooks/email`, which is what closes the loop Razorpay's no-reply
+address cannot.

@@ -13,6 +13,7 @@ export * from "./llm/index.js";
 export * from "./understand.js";
 export * from "./agent/index.js";
 export * from "./channels/whatsapp.js";
+export * from "./channels/email-send.js";
 export * from "./razorpay/index.js";
 export * from "./store.js";
 export * from "./contacts.js";

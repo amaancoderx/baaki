@@ -2,6 +2,7 @@ import { runCaseAgent, type AgentOptions } from "./agent/index.js";
 import type { AuditEntry, GuardResult } from "./audit.js";
 import { buttonIntent, isOptOut, parseWebhook, type WhatsappClient } from "./channels/whatsapp.js";
 import { extractAddress, extractReplyText } from "./channels/email.js";
+import type { EmailSender } from "./channels/email-send.js";
 import type { Contact } from "./contacts.js";
 import { runGuards } from "./guards/index.js";
 import type { Ledger } from "./ledger.js";
@@ -44,6 +45,8 @@ export interface BaakiConfig {
   razorpay?: RazorpayClient;
   whatsapp?: WhatsappClient;
   voice?: VoiceCaller;
+  /** When set, follow-up emails carry Baaki's own drafted text instead of Razorpay's template. */
+  email?: EmailSender;
   llm?: Llm;
   agent?: AgentOptions;
   clock: Clock;
@@ -678,11 +681,28 @@ export class Baaki {
         // sending: its reminder carries the payment page and its name.
         let smsed = false;
         const extRefs = ledger.external(invoiceId);
-        if (this.cfg.razorpay && extRefs?.razorpayInvoiceId && fresh.invoice.substate !== "paid") {
+        const shortUrl = extRefs?.shortUrl ?? "";
+
+        // The email carries our words when a sender is configured, and falls
+        // back to Razorpay's branded reminder when not. Same drafted text as
+        // the WhatsApp, same link, one touch either way.
+        if (this.cfg.email && fresh.buyer.email && fresh.invoice.substate !== "paid") {
           try {
-            await this.cfg.razorpay.notifyInvoice(extRefs.razorpayInvoiceId, "email");
+            await this.cfg.email.send({
+              to: fresh.buyer.email,
+              subject: `Invoice ${invoiceId}: ${formatINR(fresh.invoice.amount - fresh.invoice.amountPaid)} outstanding`,
+              text: `${a.draft}${shortUrl ? `\n\nPayment link: ${shortUrl}` : ""}`,
+            });
             emailed = true;
-          } catch { /* recorded below as what actually went */ }
+          } catch { /* fall through to the provider's reminder */ }
+        }
+        if (this.cfg.razorpay && extRefs?.razorpayInvoiceId && fresh.invoice.substate !== "paid") {
+          if (!emailed) {
+            try {
+              await this.cfg.razorpay.notifyInvoice(extRefs.razorpayInvoiceId, "email");
+              emailed = true;
+            } catch { /* recorded below as what actually went */ }
+          }
           try {
             await this.cfg.razorpay.notifyInvoice(extRefs.razorpayInvoiceId, "sms");
             smsed = true;

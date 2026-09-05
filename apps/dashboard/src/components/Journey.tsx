@@ -114,18 +114,21 @@ export function buildTimeline(i: Inv): { events: Ev[]; nextOn: string | null } {
   return { events: rolled, nextOn };
 }
 
-const DOT: Record<Ev["kind"], string> = {
+const DOT: Record<Ev["kind"] | "skip", string> = {
   issue: "🧾", wait: "🤖", send: "📨", reply: "💬", call: "📞",
-  payment: "✅", decision: "🤖", blocked: "🛡️",
+  payment: "✅", decision: "🤖", blocked: "🛡️", skip: "📅",
 };
 
 
-export function Journey({ inv }: { inv: Inv }) {
+export type ExtraEvent = { ts: number; day: number; kind: Ev["kind"] | "skip"; title: string; body?: string; meta?: string };
+
+export function Journey({ inv, extras = [] }: { inv: Inv; extras?: ExtraEvent[] }) {
   const tl = buildTimeline(inv);
+  const events = [...tl.events, ...(extras as Ev[])].sort((a, b) => a.ts - b.ts);
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      {tl.events.map((e, n) => {
-        const newDay = n === 0 || tl.events[n - 1]!.day !== e.day;
+      {events.map((e, n) => {
+        const newDay = n === 0 || events[n - 1]!.day !== e.day;
         return (
           <div key={n}>
             {newDay && (
