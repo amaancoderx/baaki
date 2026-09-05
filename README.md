@@ -36,6 +36,8 @@ Once a day, and on every webhook, Baaki looks at each open invoice and takes exa
 1. **Issue.** A real Razorpay invoice is created. Razorpay emails it, the WhatsApp goes out the same moment, and neither counts against the message budget: delivering the bill is not a reminder.
 2. **Chase.** Follow-ups ride three channels at once: Baaki's WhatsApp with drafted Hinglish text, plus Razorpay's own email and SMS for the same invoice. One decision, one touch against the budget, three envelopes.
 3. **Call.** When messages stop returning information (a buyer silent past a threshold, or a promise passed with nothing said) the agent places a real phone call and speaks Hindi. It takes consent first, resolves spoken dates ("parso", "agle hafte Tuesday") against the calendar, records the buyer's exact words, and never negotiates: a discount request is handed to a person.
+Replies are read wherever they arrive. A WhatsApp lands through Meta's webhook; an email reply lands through `/api/webhooks/email`, gets its quoted thread stripped, and rides the same pipeline: the model reads it, a promise freezes outreach, a dispute stops it, an opt-out is permanent. SMS stays send-only by design, since Indian transactional SMS rides sender ids that cannot receive replies.
+
 4. **Promise.** A date agreed out loud is immediately confirmed in writing on WhatsApp with a live payment link, and outreach freezes until the day after it. A broken promise wakes the ladder back up.
 5. **Paid.** Only Razorpay may say money moved. A signed webhook credits the payment, whichever generation of the link was paid, and the case closes itself.
 
@@ -43,7 +45,7 @@ Once a day, and on every webhook, Baaki looks at each open invoice and takes exa
 
 | Job | Who does it |
 | --- | --- |
-| Reading free-text replies in Hindi, Hinglish and English | Gemini, strict JSON schema |
+| Reading free-text replies (WhatsApp and email) in Hindi, Hinglish and English | Gemini, strict JSON schema |
 | Deciding cases that need judgement | Gemini case agent, function calling |
 | Live phone conversations | Gemini Live, native audio, full duplex |
 | Explaining the book to the merchant | "Ask Baaki AI" chat, grounded in the ledger |

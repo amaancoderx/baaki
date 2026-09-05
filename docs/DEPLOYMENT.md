@@ -83,3 +83,24 @@ usually within hours. Until they are approved the channel opens a conversation
 with an approved template instead; once the buyer replies, the 24-hour session
 window makes the real message sendable as free-form. Meta's review queue should
 not be something the agent cannot work around.
+
+
+## Inbound email
+
+`POST /api/webhooks/email` reads buyer replies into the same pipeline as
+WhatsApp. It accepts JSON (`from`, `subject`, `text`) or SendGrid-style
+multipart form data, authenticated with `?token=EMAIL_INBOUND_TOKEN` since the
+inbound-mail ecosystem has no one signature scheme.
+
+To route a real mailbox at it, either works:
+
+**Cloudflare Email Routing** (free, needs a domain on Cloudflare): route
+`collections@yourdomain` to an Email Worker that POSTs the message to the
+endpoint with the token.
+
+**SendGrid Inbound Parse**: point the domain's MX at SendGrid and set the
+Inbound Parse destination to the endpoint URL with the token.
+
+Buyers are matched by sender address against the email on the invoice, and the
+reply attaches to their earliest-due open invoice. Mail from an address not on
+file is ignored rather than guessed at.

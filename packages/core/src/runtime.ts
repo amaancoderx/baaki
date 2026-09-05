@@ -1,6 +1,7 @@
 import { runCaseAgent, type AgentOptions } from "./agent/index.js";
 import type { AuditEntry, GuardResult } from "./audit.js";
 import { buttonIntent, isOptOut, parseWebhook, type WhatsappClient } from "./channels/whatsapp.js";
+import { extractAddress, extractReplyText } from "./channels/email.js";
 import type { Contact } from "./contacts.js";
 import { runGuards } from "./guards/index.js";
 import type { Ledger } from "./ledger.js";
@@ -1064,6 +1065,63 @@ export class Baaki {
     }
 
     return { ok: true, handled };
+  }
+
+  /**
+   * A buyer replied by email.
+   *
+   * Same pipeline as a WhatsApp reply: the text is read by the model, a
+   * promise freezes outreach, a dispute stops it, an opt-out is permanent.
+   * Matching is by the sender's address against the buyer on file, which is
+   * the address Razorpay has been invoicing, so a reply from anywhere else is
+   * deliberately ignored rather than guessed at.
+   */
+  async handleInboundEmail(input: {
+    from: string; subject?: string; text: string; messageId?: string;
+  }): Promise<{ ok: boolean; reason?: string; invoiceId?: string; intent?: string }> {
+    const addr = extractAddress(input.from);
+    const text = extractReplyText(input.text);
+    if (!addr || !text) return { ok: false, reason: "nothing to read" };
+
+    // Providers redeliver on slow responses, same as Meta and Razorpay.
+    const dedupeKey = input.messageId ?? `${addr}:${text.slice(0, 80)}`;
+    if (this.#locks && !(await this.#locks.firstSeen("email", dedupeKey))) {
+      return { ok: true, reason: "duplicate" };
+    }
+
+    const target = await this.cfg.store.update((ledger) => {
+      const buyer = ledger.buyersList().find((b) => (b.email ?? "").toLowerCase() === addr);
+      if (!buyer) return null;
+      const open = ledger.openInvoices().filter((i) => i.buyerId === buyer.id)
+        .sort((a, b) => (a.dueOn < b.dueOn ? -1 : 1));
+      return open.length ? { invoiceId: open[0]!.id, buyerId: buyer.id, buyerName: buyer.name } : null;
+    }, this.cfg.policy);
+    if (!target) return { ok: false, reason: `no open invoice for ${addr}` };
+
+    let intent: string, promiseDate: CivilDate | undefined, disputeReason: string | undefined, confidence: number;
+    if (isOptOut(text)) {
+      intent = "stop"; confidence = 1;
+    } else if (this.cfg.llm) {
+      const parsed = await understandReply(this.cfg.llm, text, {
+        today: this.today(), buyerName: target.buyerName, invoiceId: target.invoiceId,
+      });
+      intent = parsed.intent;
+      promiseDate = parsed.promiseDate;
+      disputeReason = parsed.disputeReason;
+      confidence = parsed.confidence;
+    } else {
+      intent = "unclear"; confidence = 0;
+    }
+
+    await this.cfg.store.update((ledger) => {
+      ledger.recordReply({
+        invoiceId: target.invoiceId, buyerId: target.buyerId, ts: this.cfg.clock.now(),
+        channel: "email", source: "free_text", text,
+        intent: intent as never, promiseDate, disputeReason, confidence,
+      });
+    }, this.cfg.policy);
+
+    return { ok: true, invoiceId: target.invoiceId, intent };
   }
 
   async auditExport(format: "json" | "csv"): Promise<string> {

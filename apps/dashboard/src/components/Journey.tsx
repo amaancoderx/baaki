@@ -85,7 +85,7 @@ export function buildTimeline(i: Inv): { events: Ev[]; nextOn: string | null } {
   for (const r of i.replies) {
     evs.push({
       ts: r.ts, day: dayOf(r.ts, issued), kind: "reply",
-      title: "Buyer replied",
+      title: r.channel === "email" ? "Buyer replied · Email" : "Buyer replied",
       body: `“${r.text}”`,
       meta: `AI understood: ${r.intent.replace(/_/g, " ")}${r.promiseDate ? `, expected by ${r.promiseDate}` : ""}`,
     });

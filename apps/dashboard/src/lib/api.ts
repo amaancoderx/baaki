@@ -29,7 +29,7 @@ export interface LiveInvoice {
   outstanding: number;
   external: { shortUrl?: string; razorpayPaymentLinkId?: string; razorpayCustomerId?: string; virtualAccountId?: string };
   touches: { id: string; ts: number; rung: string; persona: string; carriedLiveLink: boolean; body: string }[];
-  replies: { id: string; ts: number; source: string; text: string; intent: string; promiseDate?: string; confidence: number }[];
+  replies: { id: string; ts: number; channel?: string; source: string; text: string; intent: string; promiseDate?: string; confidence: number }[];
   payments: { id: string; ts: number; amount: number; evidence: string }[];
   audit: {
     id: string; ts: number; actor: string; action: string; rationale: string;
