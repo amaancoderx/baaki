@@ -11,20 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty",
-    "sim": "tsx packages/sim/src/cli.ts",
-    "evals:report": "tsx packages/evals/src/report.ts",
     "dev": "pnpm --filter @baaki/dashboard dev",
-    "snapshot": "tsx packages/sim/src/make-snapshot.ts",
-    "sim:calibrate": "tsx packages/sim/src/calibrate.ts",
-    "sim:diagnose": "tsx packages/sim/src/diagnose.ts",
-    "build:packages": "tsc -b packages/core packages/sim packages/evals",
-    "evals:replies": "tsx packages/evals/src/reply-eval.ts",
-    "evals:agentic": "tsx packages/evals/src/agentic-run.ts",
+    "build:packages": "tsc -b packages/core",
     "webhook": "tsx apps/webhook/src/server.ts",
     "tunnel": "cloudflared tunnel --url http://localhost:3001",
-    "voice": "tsx apps/voice/src/server.ts",
-    "evals:agent-delta": "tsx packages/evals/src/agent-delta.ts",
-    "evals:comprehension": "tsx packages/evals/src/comprehension-sweep.ts"
+    "voice": "tsx apps/voice/src/server.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -58,23 +58,34 @@ export async function POST(req: Request) {
 
   if (action === "reset") {
     await setDemoOffset(0);
-    // Close whatever the previous rehearsal left open against the demo buyer.
-    // Resetting only the clock left every earlier run's invoice alive, and the
-    // oldest of them, weeks overdue on the moved calendar, phoned the merchant
-    // mid-demo about a bill from a take that no longer existed.
-    const closed: string[] = [];
-    await store().update((ledger) => {
-      const today = istParts(Date.now()).date;
-      for (const inv of ledger.openInvoices()) {
-        if (inv.buyerId !== "c_live_demo") continue;
-        ledger.setSubstate(inv.id, "closed",
-          "Demo reset. This invoice belonged to an earlier take and is closed so nothing keeps chasing it.",
-          "human", [inv.id], { closedOn: today, closedReason: "demo reset" });
-        closed.push(inv.id);
-      }
-      return null;
-    }, await policy());
-    return json({ ok: true, offsetMs: 0, simulatedDate: istParts(Date.now()).date, closed });
+    // A rehearsal that did not end in money leaves no trace; a run that got
+    // paid is real history and stays on the book. Closing rehearsals instead
+    // of removing them piled the dashboard with dead takes, and the whole
+    // point of the main screen is that everything on it is true.
+    const st = store();
+    const p = await policy();
+    const ledger = await st.load(p);
+    const snap = ledger.toJSON();
+    const paidIds = new Set(snap.invoices.filter((i) => i.amountPaid > 0).map((i) => i.id));
+    const drop = new Set(
+      snap.invoices
+        .filter((i) => i.buyerId === "c_live_demo" && !paidIds.has(i.id))
+        .map((i) => i.id),
+    );
+    if (drop.size > 0) {
+      snap.invoices = snap.invoices.filter((i) => !drop.has(i.id));
+      snap.touches = snap.touches.filter((t) => !drop.has(t.invoiceId));
+      snap.replies = snap.replies.filter((r) => !drop.has(r.invoiceId));
+      snap.payments = snap.payments.filter((x) => !drop.has(x.invoiceId));
+      snap.audit = snap.audit.filter((a) => !drop.has(a.invoiceId));
+      snap.external = (snap.external ?? []).filter(([id]) => !drop.has(id));
+      const { Ledger } = await import("@baaki/core");
+      await st.save(Ledger.fromJSON(snap, { policy: p }));
+    }
+    return json({
+      ok: true, offsetMs: 0, simulatedDate: istParts(Date.now()).date,
+      removed: [...drop],
+    });
   }
 
   if (action === "policy") {

@@ -8,7 +8,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@baaki/core": new URL("./packages/core/src/index.ts", import.meta.url).pathname,
-      "@baaki/sim": new URL("./packages/sim/src/index.ts", import.meta.url).pathname,
     },
   },
 });

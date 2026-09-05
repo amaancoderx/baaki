@@ -1,5 +1,10 @@
 # Policy
 
+> Note: the measurement layer this document cites (`packages/sim`, `packages/evals`,
+> the `evals/` reports) was removed when the repository was refocused on the live
+> agent. The numbers quoted were produced by it and are kept as recorded history;
+> the git history holds the code that generated them.
+
 Every knob, what it does, and where its value came from. Defaults live in
 `DEFAULT_POLICY` in `packages/core/src/types.ts`, policy version `p3`.
 

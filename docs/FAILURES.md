@@ -1,5 +1,10 @@
 # What broke, and what it cost
 
+> Note: the measurement layer this document cites (`packages/sim`, `packages/evals`,
+> the `evals/` reports) was removed when the repository was refocused on the live
+> agent. The numbers quoted were produced by it and are kept as recorded history;
+> the git history holds the code that generated them.
+
 Real entries from building this. Each one is a thing that was wrong in the
 repository at some point, how it was caught, and what changed.
 
