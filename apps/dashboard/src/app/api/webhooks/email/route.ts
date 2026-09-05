@@ -36,6 +36,24 @@ export async function POST(req: Request) {
     subject = String(data.subject ?? "");
     text = String(data.text ?? data.body ?? "");
     messageId = (data.email_id ?? data.message_id ?? data.messageId) as string | undefined;
+
+    // The event announces the mail; the body lives behind one more fetch.
+    // Requiring text on the event itself meant every genuine reply arrived,
+    // was acknowledged, and was thrown away with a 400.
+    const key = process.env.RESEND_API_KEY;
+    if (!text && messageId && key && b.type === "email.received") {
+      const full = await fetch(`https://api.resend.com/emails/receiving/${messageId}`, {
+        headers: { Authorization: `Bearer ${key}` },
+      }).then((r) => r.json()).catch(() => null) as Record<string, string> | null;
+      if (full) {
+        from = from || String(full.from ?? "");
+        subject = subject || String(full.subject ?? "");
+        text = String(full.text ?? "") || String(full.html ?? "")
+          .replace(/<br\s*\/?>(?=.)/gi, "\n").replace(/<\/(p|div)>/gi, "\n")
+          .replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+      }
+    }
   } else {
     const form = await req.formData();
     from = String(form.get("from") ?? "");

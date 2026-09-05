@@ -2,7 +2,7 @@ import { runCaseAgent, type AgentOptions } from "./agent/index.js";
 import type { AuditEntry, GuardResult } from "./audit.js";
 import { buttonIntent, isOptOut, parseWebhook, type WhatsappClient } from "./channels/whatsapp.js";
 import { extractAddress, extractReplyText } from "./channels/email.js";
-import type { EmailSender } from "./channels/email-send.js";
+import { renderEmailHtml, type EmailSender } from "./channels/email-send.js";
 import type { Contact } from "./contacts.js";
 import { runGuards } from "./guards/index.js";
 import type { Ledger } from "./ledger.js";
@@ -698,6 +698,14 @@ export class Baaki {
               to: fresh.buyer.email,
               subject: `Invoice ${invoiceId}: ${formatINR(fresh.invoice.amount - fresh.invoice.amountPaid)} outstanding`,
               text: `${a.draft}${shortUrl ? `\n\nPayment link: ${shortUrl}` : ""}`,
+              html: renderEmailHtml({
+                bodyText: a.draft,
+                buyerName: fresh.buyer.name,
+                invoiceId,
+                amountLabel: formatINR(fresh.invoice.amount - fresh.invoice.amountPaid),
+                dueLabel: formatCivilShort(fresh.invoice.dueOn),
+                ...(shortUrl ? { link: shortUrl } : {}),
+              }),
             });
             emailed = true;
           } catch { /* fall through to the provider's reminder */ }
