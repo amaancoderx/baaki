@@ -62,6 +62,7 @@ export async function baaki(): Promise<Baaki> {
         fallbackModels: (process.env.GEMINI_FALLBACKS ?? "gemini-3.6-flash").split(",").filter(Boolean),
       }),
     } : {}),
+    ...(process.env.WA_WABA_ID ? { wabaId: process.env.WA_WABA_ID } : {}),
     agent: { maxToolCalls: 4, timeoutMs: 20_000, onGuardReject: "retry-once-then-human" },
   });
 }

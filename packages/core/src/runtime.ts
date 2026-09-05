@@ -34,6 +34,8 @@ export interface BaakiConfig {
   clock: Clock;
   /** Set when the payment link should be shortened for the template button. */
   linkBase?: string;
+  /** Needed to check which templates Meta has approved. */
+  wabaId?: string;
 }
 
 export interface CreateInvoiceInput {
@@ -385,6 +387,30 @@ export class Baaki {
 
     const template = RUNG_TEMPLATE[a.rung];
     if (!template) return undefined;
+
+    // A template still in Meta's review queue cannot be sent, and failing the
+    // whole nudge over it means the buyer hears nothing at all. Fall back to an
+    // approved template to open the conversation; once the buyer replies the
+    // 24-hour window opens and the real message can go as free-form.
+    let chosen = template;
+    if (this.cfg.wabaId) {
+      try {
+        const approved = await this.cfg.whatsapp.approvedTemplates(this.cfg.wabaId);
+        if (!approved.has(template)) {
+          const opener = ["hello_world"].find((t) => approved.has(t));
+          if (!opener) return undefined;
+          chosen = opener;
+        }
+      } catch {
+        // Could not check; try the intended template and let the send report.
+      }
+    }
+
+    if (chosen !== template) {
+      // hello_world takes no parameters.
+      const res = await this.cfg.whatsapp.sendTemplate({ to: phone, template: chosen, language: "en_US", bodyParams: [] });
+      return { messageId: res.messageId, template: chosen, dryRun: res.dryRun };
+    }
 
     const bodyParams = a.rung === "owner_whatsapp"
       ? [name, invoice.id, formatINR(outstanding).replace("₹", "Rs "), String(Math.max(0, Math.round((Date.parse(this.today() + "T00:00:00Z") - Date.parse(invoice.dueOn + "T00:00:00Z")) / 86400000)))]

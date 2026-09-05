@@ -145,6 +145,17 @@ export function whatsapp(cfg: WhatsappConfig) {
       return { messageId: idOf(await post(`${cfg.phoneNumberId}/messages`, body)), to, kind: "interactive", dryRun: false };
     },
 
+    /** Names of templates Meta has actually approved. Cached for the process. */
+    async approvedTemplates(wabaId: string): Promise<Set<string>> {
+      const res = await fetch(
+        `${base}/${wabaId}/message_templates?fields=name,status&limit=100`,
+        { headers: { Authorization: `Bearer ${cfg.accessToken}` } },
+      );
+      if (!res.ok) return new Set();
+      const json = (await res.json()) as { data?: { name: string; status: string }[] };
+      return new Set((json.data ?? []).filter((t) => t.status === "APPROVED").map((t) => t.name));
+    },
+
     async markRead(messageId: string): Promise<void> {
       if (cfg.dryRun) return;
       await post(`${cfg.phoneNumberId}/messages`, {
