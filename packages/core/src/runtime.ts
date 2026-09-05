@@ -6,7 +6,7 @@ import { runGuards } from "./guards/index.js";
 import type { Ledger } from "./ledger.js";
 import type { Llm } from "./llm/types.js";
 import { formatINR, type Paise } from "./money.js";
-import { fastPath } from "./policy.js";
+import { fastPath, voiceCall } from "./policy.js";
 import { parseRzpEvent, type RazorpayClient, type RzpEvent } from "./razorpay/index.js";
 import { route } from "./router.js";
 import { invoiceLock, Locks, TICK_LOCK, type LockRedis } from "./locks.js";
@@ -14,7 +14,7 @@ import type { LedgerStoreLike } from "./store.js";
 import { addDays, formatCivilShort, istParts, type Clock, type CivilDate } from "./time.js";
 import { templateDraft } from "./drafts.js";
 import { understandReply } from "./understand.js";
-import type { Action, Buyer, Decision, Invoice, Policy, Rung } from "./types.js";
+import type { Action, Buyer, Channel, Decision, Invoice, Policy, Rung } from "./types.js";
 
 /** Which approved template carries which rung. */
 export const RUNG_TEMPLATE: Record<Rung, string | null> = {
@@ -25,11 +25,24 @@ export const RUNG_TEMPLATE: Record<Rung, string | null> = {
   human: null,
 };
 
+/**
+ * Places the call. Injected rather than built here so core never has to know
+ * a telephony vendor or this deployment's public origin.
+ */
+export interface VoiceCaller {
+  placeCall(input: { to: string; invoiceId: string; buyerName: string }): Promise<{
+    sid: string;
+    status: string;
+    dryRun?: boolean;
+  }>;
+}
+
 export interface BaakiConfig {
   store: LedgerStoreLike;
   policy: Policy;
   razorpay?: RazorpayClient;
   whatsapp?: WhatsappClient;
+  voice?: VoiceCaller;
   llm?: Llm;
   agent?: AgentOptions;
   clock: Clock;
@@ -61,8 +74,19 @@ export interface CreateInvoiceInput {
   issuedDaysAgo?: number;
 }
 
+export interface Delivery {
+  /** Razorpay emailed the payment link at creation. False when no email is on file. */
+  email: boolean;
+  /** Meta message id, or null when WhatsApp is not configured or the send failed. */
+  whatsappMessageId: string | null;
+  whatsappTemplate: string | null;
+  dryRun?: boolean;
+  skipped?: string;
+}
+
 export interface CreatedInvoice {
   invoice: Invoice;
+  delivered?: Delivery;
   razorpay?: {
     customerId: string;
     invoiceId?: string;
@@ -88,6 +112,11 @@ export interface TickAction {
 }
 
 export interface TickReport {
+  /**
+   * True when another pass held the ledger and this one did nothing. Distinct
+   * from a pass that ran and found nothing to do.
+   */
+  lockHeld?: boolean;
   ranAt: number;
   today: CivilDate;
   considered: number;
@@ -152,6 +181,11 @@ export class Baaki {
         expireBy,
         referenceId: `baaki_${Date.now()}`,
         notes: { baaki_contact_id: input.contact.id },
+        // One email, from Razorpay, carrying the branded link. This is the
+        // message that gets forwarded to the buyer's accounts team and quoted
+        // back in a dispute, which is why it is worth sending even though
+        // WhatsApp is the channel that actually gets read.
+        notify: { email: Boolean(input.contact.email), sms: false },
       });
 
       rzp = { customerId: customer.id, paymentLinkId: link.id, shortUrl: link.short_url };
@@ -178,7 +212,10 @@ export class Baaki {
     }
 
     const created = await this.cfg.store.update((ledger) => {
-      const buyer: Buyer = { id: input.contact.id, name: input.contact.name, phone: input.contact.phone };
+      const buyer: Buyer = {
+        id: input.contact.id, name: input.contact.name, phone: input.contact.phone,
+        ...(input.contact.email ? { email: input.contact.email } : {}),
+      };
       ledger.addBuyer(buyer, input.contact.language);
 
       const invoice: Invoice = {
@@ -219,7 +256,83 @@ export class Baaki {
       return invoice;
     }, this.cfg.policy);
 
-    return { invoice: created, razorpay: rzp };
+    const delivered = await this.#deliver(created, input.contact, rzp?.shortUrl);
+
+    return { invoice: created, razorpay: rzp, ...(delivered ? { delivered } : {}) };
+  }
+
+  /**
+   * Hands the buyer the bill on both channels at once, then writes one entry
+   * saying so. Razorpay has already emailed the link by the time this runs;
+   * this adds the WhatsApp and records the pair.
+   *
+   * Not a touch. A touch is collection outreach, and the over-contact model in
+   * the simulator is calibrated on outreach a buyer did not ask for. Counting
+   * the invoice itself against that budget would mean a buyer who pays on time
+   * still arrived one message closer to being left alone.
+   */
+  async #deliver(invoice: Invoice, contact: Contact, shortUrl?: string): Promise<Delivery | undefined> {
+    const email = Boolean(contact.email) && Boolean(this.cfg.razorpay);
+    const base: Delivery = { email, whatsappMessageId: null, whatsappTemplate: null };
+
+    const ledger = await this.cfg.store.load(this.cfg.policy);
+    if (ledger.memory(contact.id).doNotContact) {
+      const skipped: Delivery = { ...base, email: false, skipped: "buyer is on do_not_contact" };
+      await this.#recordDelivery(invoice, skipped, shortUrl);
+      return skipped;
+    }
+
+    let out = base;
+    if (this.cfg.whatsapp) {
+      const template = RUNG_TEMPLATE.whatsapp!;
+      try {
+        const res = await this.cfg.whatsapp.sendTemplate({
+          to: contact.phone,
+          template,
+          language: "en",
+          bodyParams: [
+            contact.name,
+            invoice.id,
+            formatINR(invoice.amount).replace("₹", "Rs "),
+            formatCivilShort(invoice.dueOn),
+          ],
+          ...(shortUrl ? { urlButtonSuffix: shortUrl.split("/").pop() ?? "" } : {}),
+        });
+        out = { ...base, whatsappMessageId: res.messageId, whatsappTemplate: template, ...(res.dryRun ? { dryRun: true } : {}) };
+      } catch (e) {
+        out = { ...base, skipped: e instanceof Error ? e.message : String(e) };
+      }
+    }
+
+    await this.#recordDelivery(invoice, out, shortUrl);
+    return out;
+  }
+
+  async #recordDelivery(invoice: Invoice, d: Delivery, shortUrl?: string): Promise<void> {
+    const channels: Channel[] = [];
+    if (d.email) channels.push("email");
+    if (d.whatsappMessageId) channels.push("whatsapp");
+
+    const where = channels.length === 0
+      ? "no channel was available"
+      : channels.length === 2 ? "email and WhatsApp" : channels[0] === "email" ? "email" : "WhatsApp";
+
+    await this.cfg.store.update((ledger) => {
+      ledger.audit.append({
+        ts: this.cfg.clock.now(),
+        invoiceId: invoice.id,
+        actor: "human",
+        action: "deliver_invoice",
+        params: { channels, template: d.whatsappTemplate, ...(d.skipped ? { skipped: d.skipped } : {}) },
+        rationale: d.skipped
+          ? `Invoice not delivered: ${d.skipped}.`
+          : `Invoice delivered on ${where}. This is the bill, not a reminder, so it does not count against the ${this.cfg.policy.maxTouches}-message budget.`,
+        guards: [],
+        policyVersion: this.cfg.policy.policyVersion,
+        evidence: [d.whatsappMessageId, shortUrl, invoice.id].filter(Boolean) as string[],
+      });
+      return invoice;
+    }, this.cfg.policy);
   }
 
   // -- the loop --------------------------------------------------------------
@@ -230,8 +343,14 @@ export class Baaki {
     if (this.#locks) {
       const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(), 280_000);
       if (out === null) {
+        // Another pass owns the ledger. Reported rather than returned as an
+        // empty result, because "nothing to do" and "not allowed to look" are
+        // very different answers and they used to be indistinguishable.
         const today = this.today();
-        return { ranAt: this.cfg.clock.now(), today, considered: 0, actions: [], fastCount: 0, slowCount: 0, sentCount: 0, blockedCount: 0 };
+        return {
+          ranAt: this.cfg.clock.now(), today, considered: 0, actions: [],
+          fastCount: 0, slowCount: 0, sentCount: 0, blockedCount: 0, lockHeld: true,
+        };
       }
       return out;
     }
@@ -251,7 +370,15 @@ export class Baaki {
       const r = route(c);
 
       let decision: Decision;
-      if (r.route === "slow" && this.cfg.llm) {
+      // Checked ahead of routing. Calling is triggered by a buyer having gone
+      // quiet, and a quiet case is exactly what the router sends to the agent,
+      // so a call decided only on the fast path never happens on the cases it
+      // is for. It stays a rule rather than a tool the model may reach for:
+      // this is the most intrusive thing the system does.
+      const call = voiceCall(c);
+      if (call) {
+        decision = { action: call.action, rationale: call.rationale, confidence: 1, actor: "fast", ...(call.nextReviewAt ? { nextReviewAt: call.nextReviewAt } : {}) };
+      } else if (r.route === "slow" && this.cfg.llm) {
         const res = await runCaseAgent(this.cfg.llm, c, now, this.cfg.agent);
         decision = res.decision;
       } else {
@@ -321,27 +448,41 @@ export class Baaki {
     const c = ledger.caseFile(invoiceId, now);
     const a = decision.action;
     const today = istParts(now).date;
+    // The standing decision. Without it on the entry the router has nothing to
+    // read back, so it re-asks the same question every tick and the case never
+    // settles. The simulator has always recorded this; the live path did not,
+    // which made every deployed decision non-sticky.
+    const review = decision.nextReviewAt ? { nextReviewAt: decision.nextReviewAt } : {};
 
     switch (a.kind) {
       case "none":
+        // A no-op is still a decision, and it is the one most in need of a
+        // review date: it is what holds a quiet case quiet.
+        if (decision.nextReviewAt) {
+          ledger.audit.append({
+            ts: now, invoiceId, actor: decision.actor, action: "none",
+            params: { reason: a.reason, ...review }, rationale: decision.rationale,
+            guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [invoiceId],
+          });
+        }
         return undefined;
 
       case "schedule_wait":
         ledger.audit.append({
           ts: now, invoiceId, actor: decision.actor, action: "schedule_wait",
-          params: { until: a.until, reason: a.reason }, rationale: decision.rationale,
+          params: { until: a.until, reason: a.reason, ...review }, rationale: decision.rationale,
           guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [invoiceId],
         });
         return undefined;
 
       case "open_dispute":
         ledger.setSubstate(invoiceId, "disputed", decision.rationale,
-          decision.actor === "agent" ? "agent" : "fast", [invoiceId], { disputeReason: a.reason });
+          decision.actor === "agent" ? "agent" : "fast", [invoiceId], { disputeReason: a.reason, ...review });
         return undefined;
 
       case "escalate_to_human":
         ledger.setSubstate(invoiceId, "human_hold", decision.rationale,
-          decision.actor === "agent" ? "agent" : "fast", [invoiceId]);
+          decision.actor === "agent" ? "agent" : "fast", [invoiceId], review);
         return undefined;
 
       case "stop":
@@ -354,10 +495,62 @@ export class Baaki {
         await this.reissue(ledger, invoiceId, decision.rationale, now);
         return undefined;
 
-      case "send_nudge": {
-        if (a.rung === "whatsapp+reissue" || !ledger.linkIsLive(c.invoice, today)) {
+      case "deliver_invoice":
+        // Delivery happens once, at creation, and is recorded there. The tick
+        // never proposes it.
+        return undefined;
+
+      case "place_call": {
+        // Reissue first when the link is dead. The buyer will be told on the
+        // call that a link is coming, and it needs to be a live one.
+        if (!ledger.linkIsLive(c.invoice, today)) {
           await this.reissue(ledger, invoiceId,
-            `The payment link expired on ${c.invoice.linkExpiresOn}. Reissuing before the nudge so the message carries a live path.`, now);
+            `Payment link expired on ${c.invoice.linkExpiresOn}. Reissuing before the call so the buyer can be sent a live path during it.`, now);
+        }
+        let outcome: { sid: string; status: string; dryRun?: boolean } | null = null;
+        let failure: string | null = null;
+        try {
+          outcome = this.cfg.voice
+            ? await this.cfg.voice.placeCall({ to: c.buyer.phone, invoiceId, buyerName: c.buyer.name })
+            : null;
+        } catch (e) {
+          failure = e instanceof Error ? e.message : String(e);
+        }
+        ledger.audit.append({
+          ts: now, invoiceId, actor: decision.actor, action: "place_call",
+          params: {
+            reason: a.reason, to: c.buyer.phone, ...review,
+            ...(outcome ? { callSid: outcome.sid, status: outcome.status } : {}),
+            ...(failure ? { failed: failure } : {}),
+            ...(this.cfg.voice ? {} : { failed: "no voice caller configured" }),
+          },
+          rationale: failure
+            ? `${decision.rationale} The call could not be placed: ${failure}`
+            : decision.rationale,
+          guards: runGuards(c, a, now).results,
+          policyVersion: this.cfg.policy.policyVersion,
+          evidence: [outcome?.sid, invoiceId].filter(Boolean) as string[],
+        });
+        return outcome ? { messageId: outcome.sid, template: null, dryRun: outcome.dryRun ?? false } : undefined;
+      }
+
+      case "send_nudge": {
+        // The last rung is the one with record value: it is the message a buyer
+        // forwards to their accounts team and the one quoted back later. So it
+        // goes out on both channels, as a fresh link Razorpay emails and a
+        // WhatsApp carrying the same link. One touch, two channels: the budget
+        // counts messages the buyer did not ask for, not envelopes.
+        const finalRung = a.rung === this.cfg.policy.ladder[this.cfg.policy.ladder.length - 2];
+        let emailed = false;
+
+        if (finalRung || a.rung === "whatsapp+reissue" || !ledger.linkIsLive(c.invoice, today)) {
+          emailed = await this.reissue(ledger, invoiceId,
+            finalRung
+              ? "Final notice. Issuing a fresh link so the closing message carries a live path on both channels."
+              : `The payment link expired on ${c.invoice.linkExpiresOn}. Reissuing before the nudge so the message carries a live path.`,
+            now,
+            { email: finalRung },
+          );
         }
         const fresh = ledger.caseFile(invoiceId, now);
         const sent = await this.send(fresh.invoice, fresh.buyer.phone, fresh.buyer.name, a, ledger);
@@ -367,40 +560,53 @@ export class Baaki {
             channel: "whatsapp", persona: a.persona, rung: a.rung,
             carriedLiveLink: ledger.linkIsLive(fresh.invoice, today),
             body: a.draft,
+            ...(emailed ? { emailed: true } : {}),
           },
           runGuards(fresh, a, now).results,
           decision.rationale,
           decision.actor === "agent" ? "agent" : "fast",
+          review,
         );
         return sent;
       }
     }
   }
 
-  private async reissue(ledger: Ledger, invoiceId: string, rationale: string, now: number): Promise<void> {
+  private async reissue(
+    ledger: Ledger, invoiceId: string, rationale: string, now: number,
+    opts: { email?: boolean } = {},
+  ): Promise<boolean> {
     const c = ledger.caseFile(invoiceId, now);
     const today = istParts(now).date;
     const validDays = 14;
+    const email = Boolean(opts.email && c.buyer.email);
 
     if (this.cfg.razorpay) {
       const link = await this.cfg.razorpay.createPaymentLink({
         amount: c.invoice.amount - c.invoice.amountPaid,
         description: `Invoice ${c.invoice.id} (reissued)`,
-        customer: { name: c.buyer.name, contact: `+${c.buyer.phone}` },
+        customer: {
+          name: c.buyer.name,
+          contact: `+${c.buyer.phone}`,
+          ...(c.buyer.email ? { email: c.buyer.email } : {}),
+        },
         expireBy: Math.floor(Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`) / 1000),
         referenceId: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
+        notify: { email, sms: false },
       });
       const inv = ledger.invoice(invoiceId);
       inv.linkExpiresOn = addDays(today, validDays);
       ledger.noteExternal(invoiceId, { razorpayPaymentLinkId: link.id, shortUrl: link.short_url });
       ledger.audit.append({
         ts: now, invoiceId, actor: "agent", action: "reissue_payment_path",
-        params: { paymentLinkId: link.id, shortUrl: link.short_url, expireBy: inv.linkExpiresOn },
-        rationale, guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [link.id],
+        params: { paymentLinkId: link.id, shortUrl: link.short_url, expireBy: inv.linkExpiresOn, emailed: email },
+        rationale: email ? `${rationale} Razorpay emailed the fresh link to ${c.buyer.email}.` : rationale,
+        guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [link.id],
       });
-    } else {
-      ledger.reissuePaymentPath(invoiceId, today, validDays, rationale, "agent");
+      return email;
     }
+    ledger.reissuePaymentPath(invoiceId, today, validDays, rationale, "agent");
+    return false;
   }
 
   /**

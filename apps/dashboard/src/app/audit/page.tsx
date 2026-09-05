@@ -23,7 +23,7 @@ const ACTOR: Record<string, { label: string; cls: string; meaning: string }> = {
   human: {
     label: "You",
     cls: "chip-ink",
-    meaning: "A person took it over.",
+    meaning: "You took the case over. Automation stopped here.",
   },
   webhook: {
     label: "Razorpay or WhatsApp",
@@ -37,7 +37,7 @@ const ACTION: Record<string, string> = {
   reissue_payment_path: "issued a new payment link",
   schedule_wait: "waited",
   open_dispute: "opened a dispute",
-  escalate_to_human: "handed it to a person",
+  escalate_to_human: "handed it to you",
   stop: "closed the case",
   none: "noted something",
 };

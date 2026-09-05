@@ -116,7 +116,7 @@ export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerNa
           <p className="explain-inline" style={{ marginBottom: 10 }}>
             Call {buyerName} from the browser. The agent speaks Hindi and Hinglish, takes
             consent first, and writes any promise or dispute straight into the ledger.
-            It does not negotiate: a discount or settlement request is handed to a person.
+            It does not negotiate: a discount or settlement request is handed to you.
           </p>
           <button className="btn btn-primary" onClick={start}>Start call</button>
         </>

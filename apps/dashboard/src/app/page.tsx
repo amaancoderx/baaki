@@ -9,7 +9,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   awaiting_reply: { label: "Awaiting reply", cls: "chip-neutral" },
   promised: { label: "Promised", cls: "chip-warning" },
   disputed: { label: "Disputed", cls: "chip-alert" },
-  human_hold: { label: "With a person", cls: "chip-ink" },
+  human_hold: { label: "Waiting on you", cls: "chip-ink" },
   paid: { label: "Paid", cls: "chip-accent" },
   closed: { label: "Closed", cls: "chip-neutral" },
 };
@@ -106,9 +106,9 @@ export default async function InvoicesPage() {
               <span className="stat-sub">promise or dispute</span>
             </div>
             <div className="stat">
-              <span className="overline">Needs a person</span>
+              <span className="overline">Waiting on you</span>
               <span className="stat-value">{withPeople.length}</span>
-              <span className="stat-sub">agent handed over</span>
+              <span className="stat-sub">the agent handed these over</span>
             </div>
           </section>
 

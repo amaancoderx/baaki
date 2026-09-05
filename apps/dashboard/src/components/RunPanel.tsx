@@ -8,7 +8,7 @@ const ACTION_LABEL: Record<string, string> = {
   reissue_payment_path: "Issued a new payment link",
   schedule_wait: "Waiting",
   open_dispute: "Opened a dispute",
-  escalate_to_human: "Handed to a person",
+  escalate_to_human: "Handed to you",
   stop: "Closed the case",
   none: "No action needed",
 };
@@ -26,7 +26,7 @@ const ROUTE_LABEL: Record<string, string> = {
   "next rung is owner_whatsapp": "escalating to the owner's name",
   "next rung is human": "ladder is exhausted",
   "dispute recently opened": "dispute just opened",
-  "already held for a human": "a person owns this case",
+  "already held for a human": "you already own this case",
   "reply parse below confidence threshold": "the reply was not understood clearly",
 };
 

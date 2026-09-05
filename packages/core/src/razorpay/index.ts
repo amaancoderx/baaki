@@ -129,13 +129,21 @@ export function razorpay(cfg: RazorpayConfig) {
       expireBy?: number;
       referenceId?: string;
       notes?: Record<string, string>;
+      /**
+       * Razorpay delivers the link itself, once, when the link is created.
+       * `reminder_enable` is never exposed: if Razorpay ran its own reminder
+       * ladder, outreach would leave without passing the guard layer, the
+       * touch budget would be quietly wrong, and every number in the evals
+       * would describe a policy that is not the one running.
+       */
+      notify?: { sms?: boolean; email?: boolean };
     }) =>
       call<RzpPaymentLink>("POST", "/payment_links", {
         amount: l.amount,
         currency: "INR",
         description: l.description,
         customer: l.customer,
-        notify: { sms: false, email: false },
+        notify: { sms: l.notify?.sms ?? false, email: l.notify?.email ?? false },
         reminder_enable: false,
         ...(l.expireBy ? { expire_by: l.expireBy } : {}),
         ...(l.referenceId ? { reference_id: l.referenceId } : {}),

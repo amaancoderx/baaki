@@ -3,8 +3,9 @@ import { istAt, addDays } from "../time.js";
 import { DEFAULT_POLICY, type Action, type CaseFile, type Invoice, type Reply, type Touch } from "../types.js";
 import { emptyMemory } from "../memory.js";
 import {
-  campaignEnd, contactWindow, doNotContact, draftFilter, maxTouches, minGap,
-  noContactWhileHeld, runGuards, stopOnPaid, whatsappSessionWindow,
+  ALL_GUARDS, campaignEnd, contactWindow, doNotContact, draftFilter, maxTouches,
+  minGap, noContactWhileHeld, runGuards, stopOnPaid, voiceBudget, voiceWindow,
+  whatsappSessionWindow,
 } from "./index.js";
 
 const TODAY = "2025-11-12"; // a Wednesday, not a holiday in IN-KA
@@ -27,7 +28,7 @@ function caseFile(over: Partial<CaseFile> = {}): CaseFile {
     invoice: inv,
     buyer: { id: "b_1", name: "Sharma Traders", phone: "+919000000001" },
     memory: emptyMemory("b_1"),
-    touches: [], replies: [], payments: [],
+    touches: [], replies: [], payments: [], callsPlaced: 0,
     daysOverdue: 47, nextRung: "whatsapp", lastDecisionTs: null, nextReviewOn: null, policy: DEFAULT_POLICY,
     ...over,
   };
@@ -213,13 +214,89 @@ describe("draft filter", () => {
   });
 });
 
+// Voice is off in DEFAULT_POLICY so the simulator never places a call. These
+// tests need it on.
+const VOICE = {
+  ...DEFAULT_POLICY,
+  voice: { enabled: true, afterSilentDays: 12, onBrokenPromise: true, maxCalls: 1, window: { start: "10:00", end: "18:00" } },
+};
+const call: Action = { kind: "place_call", reason: "silent buyer" };
+
+describe("voice_window", () => {
+  it("allows a call inside the calling window", () => {
+    expect(voiceWindow(caseFile({ policy: VOICE }), call, istAt(TODAY, 11)).pass).toBe(true);
+  });
+
+  it("refuses a call the message window would have allowed", () => {
+    // 18:30 is inside neither, but 09:30 is inside the message window and
+    // outside the calling window. A call is held to the narrower one.
+    const at930 = istAt(TODAY, 9, 30);
+    expect(contactWindow(caseFile({ policy: VOICE }), nudge(), at930).pass).toBe(true);
+    expect(voiceWindow(caseFile({ policy: VOICE }), call, at930).pass).toBe(false);
+  });
+
+  it("refuses a call in the evening", () => {
+    expect(voiceWindow(caseFile({ policy: VOICE }), call, istAt(TODAY, 21)).pass).toBe(false);
+  });
+
+  it("refuses a call on a Sunday", () => {
+    expect(voiceWindow(caseFile({ policy: VOICE }), call, istAt("2025-11-16", 11)).pass).toBe(false);
+  });
+
+  it("ignores everything that is not a call", () => {
+    expect(voiceWindow(caseFile({ policy: VOICE }), nudge(), istAt(TODAY, 21)).pass).toBe(true);
+  });
+});
+
+describe("voice_budget", () => {
+  it("allows the first call", () => {
+    expect(voiceBudget(caseFile({ policy: VOICE, callsPlaced: 0 }), call, istAt(TODAY, 11)).pass).toBe(true);
+  });
+
+  it("refuses the second call for the life of the invoice", () => {
+    const v = voiceBudget(caseFile({ policy: VOICE, callsPlaced: 1 }), call, istAt(TODAY, 11));
+    expect(v.pass).toBe(false);
+    expect(v.detail).toContain("lifetime cap");
+  });
+
+  it("refuses every call when voice is off, which is how the simulator runs", () => {
+    expect(voiceBudget(caseFile(), call, istAt(TODAY, 11)).pass).toBe(false);
+  });
+
+  it("refuses to call a buyer about a dispute", () => {
+    const c = caseFile({ policy: VOICE, invoice: invoice({ substate: "disputed", disputeReason: "short delivery" }) });
+    expect(voiceBudget(c, call, istAt(TODAY, 11)).pass).toBe(false);
+  });
+});
+
+describe("do_not_contact covers more than nudges", () => {
+  const mem = { ...emptyMemory("b_1"), doNotContact: true };
+
+  it("blocks a call", () => {
+    expect(doNotContact(caseFile({ policy: VOICE, memory: mem }), call, istAt(TODAY, 11)).pass).toBe(false);
+  });
+
+  it("blocks delivering the invoice", () => {
+    const deliver: Action = { kind: "deliver_invoice", channels: ["email", "whatsapp"] };
+    expect(doNotContact(caseFile({ memory: mem }), deliver, istAt(TODAY, 11)).pass).toBe(false);
+  });
+
+  it("still lets the case be handed to a person", () => {
+    const esc: Action = { kind: "escalate_to_human", reason: "opted out" };
+    expect(doNotContact(caseFile({ memory: mem }), esc, istAt(TODAY, 11)).pass).toBe(true);
+  });
+});
+
 describe("runGuards", () => {
   it("evaluates every guard rather than short-circuiting", () => {
     const mem = { ...emptyMemory("b_1"), doNotContact: true };
     const v = runGuards(caseFile({ memory: mem }), nudge(), istAt(TODAY, 3));
     expect(v.allowed).toBe(false);
-    // A complete audit trail needs a verdict from each guard, not just the first failure.
-    expect(v.results).toHaveLength(9);
+    // A complete audit trail needs a verdict from each guard, not just the first
+    // failure. Asserted against the guard list rather than a literal, so adding
+    // a guard cannot quietly leave one unevaluated.
+    expect(v.results).toHaveLength(ALL_GUARDS.length);
+    expect(new Set(v.results.map((r) => r.name)).size).toBe(ALL_GUARDS.length);
     expect(v.results.filter((r) => !r.pass).length).toBeGreaterThan(1);
   });
 

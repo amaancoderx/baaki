@@ -52,6 +52,8 @@ export interface Touch {
   rung: Rung;
   /** False when the payment link was expired at send time: a nudge with no live path. */
   carriedLiveLink: boolean;
+  /** Set when the same touch also went out by email, which the final notice does. */
+  emailed?: boolean;
   body: string;
 }
 
@@ -88,6 +90,8 @@ export interface Buyer {
   id: string;
   name: string;
   phone: string;
+  /** Where Razorpay sends the link. Absent for buyers who gave only a number. */
+  email?: string;
   /** Set only by the sim. The agent never reads this. */
   hiddenPersonaKey?: string;
 }
@@ -126,6 +130,13 @@ export interface CaseFile {
   daysOverdue: number;
   nextRung: Rung;
   /**
+   * Calls already placed on this invoice. Read from the audit log rather than
+   * from `touches`, because a call is not a message: the ladder maths and the
+   * over-contact model are calibrated on messages, and folding a call into
+   * them would change what every published number means.
+   */
+  callsPlaced: number;
+  /**
    * When a decider last acted on this invoice. A reply is "handled" once a
    * decision postdates it, even a decision that sends nothing. Otherwise a
    * case answered with schedule_wait re-escalates to the agent every single
@@ -153,6 +164,19 @@ export interface CaseFile {
 
 export type Action =
   | { kind: "none"; reason: string }
+  /**
+   * Handing the buyer the bill, on every channel at once. Deliberately not a
+   * nudge: a buyer is not annoyed by receiving the invoice they expected, so
+   * this does not spend the touch budget and does not enter the over-contact
+   * model. It fires once, at creation.
+   */
+  | { kind: "deliver_invoice"; channels: Channel[] }
+  /**
+   * A real phone call. Not a ladder rung, because it is not the next thing to
+   * try after a message: it is what happens when messages have stopped
+   * returning information. Off in the simulator, which does not model calls.
+   */
+  | { kind: "place_call"; reason: string }
   | { kind: "send_nudge"; channel: Channel; persona: Persona; rung: Rung; draft: string }
   | { kind: "reissue_payment_path" }
   | { kind: "schedule_wait"; until: CivilDate; reason: string }
@@ -214,7 +238,39 @@ export interface Policy {
    * the automated path is working ran out two touches ago.
    */
   silentTouchCap: number;
+  /**
+   * When Baaki picks up the phone. Absent means never, which is how the
+   * simulator runs: it models messages moving a payment hazard and has no
+   * representation of a conversation, so a policy that placed calls inside it
+   * would be measuring a fiction. Every collection figure in `evals/report.md`
+   * therefore describes the message-only policy.
+   */
+  voice?: VoicePolicy;
   policyVersion: string;
+}
+
+export interface VoicePolicy {
+  enabled: boolean;
+  /**
+   * Days past due with no reply and no button press before a call is worth
+   * placing. The trigger is missing information, not elapsed time: WhatsApp is
+   * the cheap probe, and you only pay for the expensive one when the cheap one
+   * came back empty.
+   */
+  afterSilentDays: number;
+  /** Also call when a promised date passes with no payment and no explanation. */
+  onBrokenPromise: boolean;
+  /**
+   * Calls permitted for the whole life of the invoice, not per rung. A second
+   * unanswered call says nothing the first did not.
+   */
+  maxCalls: number;
+  /**
+   * Tighter than the message window on purpose. A WhatsApp at nine in the
+   * evening is rude; a phone call at nine in the evening is a different
+   * category of offence.
+   */
+  window: { start: string; end: string };
 }
 
 export const DEFAULT_POLICY: Policy = {
@@ -235,5 +291,19 @@ export const DEFAULT_POLICY: Policy = {
   silentBackoffAfterTouches: 2,
   silentBackoffMultiplier: 2,
   silentTouchCap: 4,
+  // Off here so the simulator, and therefore every published number, stays a
+  // measurement of the message-only policy. `LIVE_POLICY` turns it on.
+  voice: { enabled: false, afterSilentDays: 12, onBrokenPromise: true, maxCalls: 1, window: { start: "10:00", end: "18:00" } },
   policyVersion: "p3",
+};
+
+/**
+ * What the deployed product runs: the measured policy plus the phone. Split
+ * from `DEFAULT_POLICY` rather than folded into it so that turning voice on
+ * can never silently change what the evals are describing.
+ */
+export const LIVE_POLICY: Policy = {
+  ...DEFAULT_POLICY,
+  voice: { ...DEFAULT_POLICY.voice!, enabled: true },
+  policyVersion: "p3-live",
 };

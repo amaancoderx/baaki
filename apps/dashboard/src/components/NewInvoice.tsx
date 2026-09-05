@@ -197,7 +197,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
                   <span className="label">Maximum messages</span>
                   <input className="input num" type="number" value={rules.maxTouches}
                     onChange={(e) => setRules({ ...rules, maxTouches: Number(e.target.value) })} />
-                  <span className="hint">After this the case goes to a person</span>
+                  <span className="hint">After this many messages the case comes to you</span>
                 </div>
                 <div className="field">
                   <span className="label">Minimum gap between messages</span>
@@ -209,7 +209,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
                   <span className="label">Cap for silent buyers</span>
                   <input className="input num" type="number" value={rules.silentTouchCap}
                     onChange={(e) => setRules({ ...rules, silentTouchCap: Number(e.target.value) })} />
-                  <span className="hint">A buyer who never replies goes to a person after this many</span>
+                  <span className="hint">A buyer who never replies comes to you after this many days</span>
                 </div>
                 <div className="field">
                   <span className="label">Contact hours (IST)</span>
@@ -226,7 +226,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
                   <span className="label">Campaign length</span>
                   <input className="input num" type="number" value={rules.campaignDays}
                     onChange={(e) => setRules({ ...rules, campaignDays: Number(e.target.value) })} />
-                  <span className="hint">After this only a person may act</span>
+                  <span className="hint">After this the agent stops and only you can act</span>
                 </div>
               </div>
             </div>

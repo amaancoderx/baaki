@@ -10,20 +10,20 @@ export const dynamic = "force-dynamic";
 const SUBSTATE: Record<string, { label: string; cls: string; note: string }> = {
   awaiting_reply: { label: "Awaiting reply", cls: "chip-neutral", note: "A message has gone out and the buyer has not answered yet." },
   promised: { label: "Promised", cls: "chip-warning", note: "The buyer gave a date. Nothing will be sent until the day after it." },
-  disputed: { label: "Disputed", cls: "chip-alert", note: "The buyer raised a query. Outreach is frozen and this needs a person." },
-  human_hold: { label: "With a person", cls: "chip-ink", note: "The agent handed this over. Automation will not act on it again." },
+  disputed: { label: "Disputed", cls: "chip-alert", note: "The buyer raised a query. Outreach is frozen until you look at it." },
+  human_hold: { label: "Waiting on you", cls: "chip-ink", note: "The agent handed this to you. Automation will not act on it again." },
   paid: { label: "Paid", cls: "chip-accent", note: "Razorpay confirmed payment. The campaign has stopped." },
   closed: { label: "Closed", cls: "chip-neutral", note: "This case is finished." },
 };
 
 const ACTOR: Record<string, string> = {
-  fast: "Rule", agent: "Baaki AI", human: "Person", webhook: "Razorpay / WhatsApp",
+  fast: "Rule", agent: "Baaki AI", human: "You", webhook: "Razorpay / WhatsApp",
 };
 
 const ACTION: Record<string, string> = {
   send_nudge: "sent a message", reissue_payment_path: "issued a new payment link",
   schedule_wait: "waited", open_dispute: "opened a dispute",
-  escalate_to_human: "handed to a person", stop: "closed the case", none: "noted",
+  escalate_to_human: "handed it to you", stop: "closed the case", none: "noted",
 };
 
 function Timeline({ i }: { i: LiveInvoice }) {

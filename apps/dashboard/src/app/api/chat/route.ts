@@ -37,7 +37,7 @@ WHAT BAAKI DOES
 It watches Razorpay invoices and keeps a ledger of who owes what. Once a day it
 decides one action per open invoice, and most days that action is to wait. When
 a buyer replies on WhatsApp, Baaki AI reads the reply: a promise freezes
-outreach until that date, a dispute stops it and needs a person to look. Before
+outreach until that date, a dispute stops it and waits for the merchant. Before
 anything goes out, a guard layer checks contact hours, message limits, minimum
 gaps and do-not-contact.
 

@@ -12,7 +12,10 @@ export async function POST(req: Request) {
   const contact = (await contacts()).find((c) => c.id === body.contactId);
   if (!contact) return json({ error: `no contact ${body.contactId}` }, 404);
 
-  const out = await (await baaki()).createInvoice({
+  // Delivery goes out on creation, so the runtime needs an origin for any
+  // callback URLs it hands to a provider.
+  const origin = new URL(req.url).origin;
+  const out = await (await baaki({ origin })).createInvoice({
     contact,
     amount: rupees(body.amountRupees),
     description: body.description ?? `Supply against PO for ${contact.name}`,

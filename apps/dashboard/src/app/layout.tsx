@@ -14,6 +14,7 @@ const NAV = [
   { href: "/new", label: "New invoice" },
   { href: "/run", label: "Run agent" },
   { href: "/audit", label: "Audit" },
+  { href: "/demo", label: "Demo run" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

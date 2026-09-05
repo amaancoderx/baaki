@@ -226,6 +226,7 @@ export class Ledger {
       payments: this.paymentsFor(invoiceId),
       daysOverdue: this.daysOverdue(inv, today),
       nextRung: this.nextRung(inv, today),
+      callsPlaced: this.callsPlaced(invoiceId),
       lastDecisionTs: this.lastDecisionTs(invoiceId),
       nextReviewOn: this.nextReviewOn(invoiceId),
       policy: this.policy,
@@ -336,6 +337,11 @@ export class Ledger {
     inv.linkExpiresOn = addDays(today, days);
     this.#audit(invoiceId, actor, "reissue_payment_path",
       { paymentLinkId: link, expireBy: inv.linkExpiresOn }, rationale, [link]);
+  }
+
+  /** Calls placed on this invoice, counted from the append-only log. */
+  callsPlaced(invoiceId: string): number {
+    return this.audit.forInvoice(invoiceId).filter((e) => e.action === "place_call").length;
   }
 
   linkIsLive(inv: Invoice, today: CivilDate): boolean {

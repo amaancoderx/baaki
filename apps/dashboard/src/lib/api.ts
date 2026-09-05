@@ -47,7 +47,9 @@ export interface Policy {
   policyVersion: string;
 }
 
-export interface AppState { policy: Policy; invoices: LiveInvoice[]; contacts: Contact[] }
+export interface AppState {
+  /** How far ahead of real time the app is running. Zero outside a demo. */
+  demoOffsetMs?: number; policy: Policy; invoices: LiveInvoice[]; contacts: Contact[] }
 
 export interface TickAction {
   invoiceId: string; buyer: string; route: "fast" | "slow"; routeReason: string;

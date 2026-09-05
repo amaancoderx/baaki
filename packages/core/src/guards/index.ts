@@ -22,6 +22,14 @@ const fail = (name: string, detail: string): GuardResult => ({ name, pass: false
 /** Only outbound contact is gated. Waiting, escalating and stopping are always allowed. */
 const isOutbound = (a: Action): boolean => a.kind === "send_nudge";
 
+/**
+ * Anything the buyer actually receives. Wider than `isOutbound`, because
+ * delivering an invoice and calling someone are not nudges but do reach a
+ * person, and "do not contact me" means all of it.
+ */
+const reachesBuyer = (a: Action): boolean =>
+  a.kind === "send_nudge" || a.kind === "deliver_invoice" || a.kind === "place_call";
+
 export const stopOnPaid: Guard = (c, a) => {
   const n = "stop_on_paid";
   if (a.kind === "stop" || a.kind === "none") return pass(n);
@@ -33,7 +41,7 @@ export const stopOnPaid: Guard = (c, a) => {
 
 export const doNotContact: Guard = (c, a) => {
   const n = "do_not_contact";
-  if (!isOutbound(a)) return pass(n);
+  if (!reachesBuyer(a)) return pass(n);
   if (c.memory.doNotContact) {
     return fail(n, `Buyer ${c.buyer.id} is on do_not_contact. This is permanent and cannot be overridden.`);
   }
@@ -113,6 +121,48 @@ export const whatsappSessionWindow: Guard = (c, a, nowMs) => {
   return pass(n);
 };
 
+/**
+ * A call is held to a narrower window than a message. Nine in the evening is
+ * a rude WhatsApp and an unacceptable phone call, so voice does not inherit
+ * the message window.
+ */
+export const voiceWindow: Guard = (c, a, nowMs) => {
+  const n = "voice_window";
+  if (a.kind !== "place_call") return pass(n);
+  const v = c.policy.voice;
+  if (!v) return fail(n, "Voice is not configured in this policy.");
+  const { hour, minute, date, weekday } = istParts(nowMs);
+  const start = parseHHMM(v.window.start);
+  const end = parseHHMM(v.window.end);
+  const mins = hour * 60 + minute;
+  if (mins < start.hour * 60 + start.minute || mins >= end.hour * 60 + end.minute) {
+    return fail(n, `Local time ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} IST is outside the calling window ${v.window.start}-${v.window.end}.`);
+  }
+  if (isNonBusinessDay(date, c.policy.contactWindow.holidays, weekday)) {
+    return fail(n, `${date} is a holiday or Sunday. Calls are not placed on non-business days.`);
+  }
+  return pass(n);
+};
+
+/**
+ * One call per invoice, for its whole life. A second unanswered call tells you
+ * nothing the first did not, and a buyer who is being rung repeatedly stops
+ * answering the number.
+ */
+export const voiceBudget: Guard = (c, a) => {
+  const n = "voice_budget";
+  if (a.kind !== "place_call") return pass(n);
+  const v = c.policy.voice;
+  if (!v?.enabled) return fail(n, "Voice is disabled in this policy.");
+  if (c.callsPlaced >= v.maxCalls) {
+    return fail(n, `${c.callsPlaced} call(s) already placed on this invoice; the lifetime cap is ${v.maxCalls}.`);
+  }
+  if (c.invoice.substate === "disputed") {
+    return fail(n, "Invoice is disputed. A dispute is resolved by a person, not by calling the buyer about it.");
+  }
+  return pass(n);
+};
+
 export const campaignEnd: Guard = (c, a, nowMs) => {
   const n = "campaign_end";
   const today = istParts(nowMs).date;
@@ -140,6 +190,8 @@ export const ALL_GUARDS: readonly Guard[] = [
   doNotContact,
   campaignEnd,
   noContactWhileHeld,
+  voiceWindow,
+  voiceBudget,
   contactWindow,
   maxTouches,
   minGap,
