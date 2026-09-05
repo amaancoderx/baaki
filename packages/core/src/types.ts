@@ -298,6 +298,31 @@ export const DEFAULT_POLICY: Policy = {
 };
 
 /**
+ * The same product on a compressed calendar, for showing the whole arc of an
+ * invoice in a few minutes.
+ *
+ * Every gap is shortened and nothing else changes: the same guards run, the
+ * same router decides, the same ladder climbs. It is a separate policy rather
+ * than an edit to the shipped one because a two-day cadence is a bad policy and
+ * the measurement says so. At gaps like these the ladder put three touches
+ * inside every persona's over-contact window and produced 55 complaints and 26
+ * opt-outs while collecting no more money, which is exactly why the shipped
+ * gaps are 10 to 18 days. Anywhere this policy is used, say so on screen.
+ */
+export const DEMO_POLICY: Policy = {
+  ...DEFAULT_POLICY,
+  preDueDays: 1,
+  rungGapDays: [0, 2, 2, 2, 2],
+  minGapDays: 1,
+  campaignDays: 30,
+  silentBackoffAfterTouches: 99,   // no backoff: it would stretch the demo out again
+  silentTouchCap: 6,
+  escalateAfterSilentDays: 4,
+  voice: { enabled: true, afterSilentDays: 2, onBrokenPromise: true, maxCalls: 2, window: { start: "09:00", end: "21:00" } },
+  policyVersion: "p3-demo",
+};
+
+/**
  * What the deployed product runs: the measured policy plus the phone. Split
  * from `DEFAULT_POLICY` rather than folded into it so that turning voice on
  * can never silently change what the evals are describing.

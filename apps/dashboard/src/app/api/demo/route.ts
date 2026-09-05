@@ -1,4 +1,4 @@
-import { addDays, isNonBusinessDay, istAt, istParts, type CivilDate } from "@baaki/core";
+import { DEMO_POLICY, LIVE_POLICY, addDays, isNonBusinessDay, istAt, istParts, type CivilDate } from "@baaki/core";
 import { baaki, demoOffset, json, policy, setDemoOffset, store } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
@@ -54,14 +54,52 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { action } = (await req.json().catch(() => ({}))) as { action?: string };
+  const { action, days } = (await req.json().catch(() => ({}))) as { action?: string; days?: number };
 
   if (action === "reset") {
     await setDemoOffset(0);
     return json({ ok: true, offsetMs: 0, simulatedDate: istParts(Date.now()).date });
   }
 
-  if (action !== "advance") return json({ error: "action must be advance or reset" }, 400);
+  if (action === "policy") {
+    // Swap the whole book onto the compressed calendar, or back. Same code,
+    // same guards; only the gaps differ, and the screen says so.
+    const { which } = (await Promise.resolve({ which: days === 1 ? "demo" : "live" })) as { which: string };
+    const next = which === "demo" ? DEMO_POLICY : LIVE_POLICY;
+    return json({ policy: await store().savePolicy(next) });
+  }
+
+  if (action !== "advance") return json({ error: "action must be advance, skip, reset or policy" }, 400);
+
+  // An explicit number of days, for driving a demo at a chosen pace rather
+  // than letting it jump to wherever the next thing happens to be.
+  if (typeof days === "number" && days > 0) {
+    const p0 = await policy();
+    const off0 = await demoOffset();
+    const from = istParts(Date.now() + off0).date;
+    const target = addDays(from, Math.min(days, 90));
+    const at = jumpTo(target, Date.now() + off0, p0.contactWindow.holidays);
+    const offset = at - Date.now();
+    await setDemoOffset(offset);
+    const b0 = await baaki({ origin: new URL(req.url).origin });
+    const rep = await b0.tick();
+    if (rep.lockHeld) return json({ error: "another pass is holding the ledger, try again shortly" }, 409);
+    return json({
+      ok: true, jumped: true, offsetMs: offset,
+      daysAhead: Math.round(offset / 86_400_000),
+      simulatedDate: rep.today, looked: 1, quiet: rep.sentCount === 0, nextDue: null,
+      report: {
+        sent: rep.sentCount, blocked: rep.blockedCount,
+        actions: rep.actions.map((a) => ({
+          on: rep.today, invoiceId: a.invoiceId, buyer: a.buyer, route: a.route,
+          kind: a.action.kind, rung: a.action.kind === "send_nudge" ? a.action.rung : null,
+          rationale: a.rationale, sent: a.sent ?? null, blocked: a.blocked ?? null,
+          error: a.error ?? null,
+          guardsFailed: a.guards.filter((g) => !g.pass).map((g) => g.name),
+        })),
+      },
+    });
+  }
 
   const p = await policy();
   const holidays = p.contactWindow.holidays;

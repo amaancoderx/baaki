@@ -69,8 +69,35 @@ export const bufferToInt16 = (buf: Buffer): Int16Array =>
   new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
 
 /** Twilio mu-law 8 kHz → Gemini PCM 16 kHz. */
+/**
+ * Gain applied to the buyer's audio before it reaches the model.
+ *
+ * A mu-law phone line arrives quiet: measured speech peaked at 0.13 with a
+ * noise floor of 0.0002. The session runs START_SENSITIVITY_LOW, which exists
+ * because a sensitive detector read line noise as speech and made her restart
+ * her sentences. That left a narrow band where a buyer speaking normally never
+ * tripped the detector at all, and the call went silent after the greeting.
+ *
+ * Lifting the whole signal keeps the ~30x separation between speech and the
+ * noise floor intact, so speech clears the threshold and the noise still does
+ * not. Turning sensitivity back up would have closed the gap from the wrong
+ * end and brought the restarts back.
+ */
+const INBOUND_GAIN = Number(process.env.VOICE_INBOUND_GAIN ?? 4);
+
+function amplify(pcm: Int16Array, gain: number): Int16Array {
+  if (gain === 1) return pcm;
+  for (let i = 0; i < pcm.length; i++) {
+    const v = pcm[i]! * gain;
+    // Clamp rather than wrap. A wrapped sample is a loud click, and a click is
+    // exactly the thing a speech detector should not be hearing.
+    pcm[i] = v > 32767 ? 32767 : v < -32768 ? -32768 : v;
+  }
+  return pcm;
+}
+
 export const twilioToGemini = (payloadB64: string): Buffer =>
-  int16ToBuffer(resample(muLawBufferToPcm16(Buffer.from(payloadB64, "base64")), 8000, 16000));
+  int16ToBuffer(amplify(resample(muLawBufferToPcm16(Buffer.from(payloadB64, "base64")), 8000, 16000), INBOUND_GAIN));
 
 /** Gemini PCM 24 kHz → Twilio mu-law 8 kHz. */
 export const geminiToTwilio = (pcm24: Buffer): string =>

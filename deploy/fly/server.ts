@@ -104,7 +104,44 @@ wss.on("connection", (ws: WebSocket) => {
   let framesIn = 0, bytesToGemini = 0, framesOut = 0, geminiChunks = 0;
   /** Set when a tool concluded the call: hang up once she finishes speaking. */
   let endAfterTurn = false;
-  const batcher = new InboundBatcher((pcm) => { bytesToGemini += pcm.length; sendAudio(pcm); }, 60);
+  /**
+   * A terminal tool has run. She says goodbye in the same turn as the tool
+   * call, but the tool result is still owed back to the model, and answering it
+   * makes the model take another turn: a second, identical goodbye. So the turn
+   * carrying the tool is allowed to finish and every generation after it is
+   * dropped on the floor.
+   */
+  let concluded = false;
+  let goodbyeDone = false;
+
+  /** Hang up once the audio already queued has actually played out. */
+  const hangUpWhenDrained = (why: string): void => {
+    const tick = (): void => {
+      if (pacer.queuedMs <= 40) shutdown(why);
+      else setTimeout(tick, 120);
+    };
+    tick();
+  };
+  // Rolling loudness of what we hand the model. Silence and speech look
+  // identical in a byte count, and every diagnosis so far has been guesswork
+  // about which one is arriving.
+  let rmsSum = 0, rmsN = 0, rmsPeak = 0;
+  const measure = (pcm: Buffer): void => {
+    let sum = 0;
+    for (let i = 0; i + 1 < pcm.length; i += 2) {
+      const v = pcm.readInt16LE(i) / 32768;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, pcm.length / 2));
+    rmsSum += rms; rmsN += 1;
+    if (rms > rmsPeak) rmsPeak = rms;
+  };
+
+  const batcher = new InboundBatcher((pcm) => {
+    bytesToGemini += pcm.length;
+    measure(pcm);
+    sendAudio(pcm);
+  }, 60);
 
   function sendAudio(pcm16: Buffer): void {
     if (closed) return;
@@ -174,7 +211,14 @@ wss.on("connection", (ws: WebSocket) => {
 
       if (msg.setupComplete) {
         ready = true;
-        for (const q of queued) sendAudio(q);
+        // Dropped, not flushed. This is whatever Twilio sent between the media
+        // stream opening and the model finishing setup: dial noise from before
+        // anyone had spoken, since she has not even given the opening line yet.
+        // Pushing it in as realtime input and then immediately forcing the
+        // opening turn left the session with a stream it never resolved, and
+        // the buyer's speech was never detected for the rest of the call. Every
+        // silent call had pre-roll; the ones that worked had none.
+        if (queued.length > 0) log(`  dropped ${queued.length} pre-roll frames from before setup`);
         queued.length = 0;
         // Outbound call: she speaks first, starting with the consent line.
         live!.send(JSON.stringify({
@@ -191,7 +235,9 @@ wss.on("connection", (ws: WebSocket) => {
       if (sc?.interrupted) pacer.clear();
       if (sc) {
         for (const part of sc.modelTurn?.parts ?? []) {
-          if (part.inlineData?.data) {
+          // Anything generated after the goodbye turn is the model answering
+          // its own tool result. Nobody needs to hear the goodbye twice.
+          if (part.inlineData?.data && !goodbyeDone) {
             pacer.push(Buffer.from(geminiToTwilio(Buffer.from(part.inlineData.data, "base64")), "base64"));
           }
         }
@@ -199,9 +245,10 @@ wss.on("connection", (ws: WebSocket) => {
         if (sc.inputTranscription?.text) log(`  buyer: ${sc.inputTranscription.text}`);
         if (sc.turnComplete) log("  model turn complete");
         if (sc.generationComplete) log("  generation complete");
-        if (endAfterTurn && (sc.turnComplete || sc.generationComplete)) {
+        if ((sc.turnComplete || sc.generationComplete) && (concluded || endAfterTurn) && !goodbyeDone) {
+          goodbyeDone = true;
           log("  business concluded and she has finished speaking");
-          shutdown("goodbye said");
+          hangUpWhenDrained("goodbye said");
         }
       }
 
@@ -211,7 +258,15 @@ wss.on("connection", (ws: WebSocket) => {
           const outcome = await runTool(call.name, call.args ?? {}, ctx, callSid);
           log(`  tool ${call.name} -> ${outcome.detail}`);
           responses.push({ id: call.id, name: call.name, response: { result: outcome.detail } });
-          if (outcome.endCall) setTimeout(() => shutdown("business concluded"), 6_000);
+          // Not a fixed timer. Six seconds is either a cut-off or dead air
+          // depending on how long the goodbye ran. Wait for the turn to end and
+          // the queued audio to drain instead.
+          if (outcome.endCall) {
+            concluded = true;
+            setTimeout(() => {
+              if (!goodbyeDone) { goodbyeDone = true; hangUpWhenDrained("business concluded"); }
+            }, 12_000);
+          }
         }
         live!.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
       }
@@ -234,7 +289,11 @@ wss.on("connection", (ws: WebSocket) => {
         framesIn += 1;
         const pcm = twilioToGemini(msg.media.payload);
         if (framesIn === 1) log(`  first inbound frame: ${msg.media.payload.length}b mulaw -> ${pcm.length}b pcm16`);
-        if (framesIn % 250 === 0) log(`  inbound ${framesIn} frames, ${bytesToGemini}b to gemini, ready=${ready}`);
+        if (framesIn % 250 === 0) {
+          const avg = rmsN ? rmsSum / rmsN : 0;
+          log(`  inbound ${framesIn} frames, ${bytesToGemini}b to gemini, ready=${ready}, rms avg ${avg.toFixed(4)} peak ${rmsPeak.toFixed(4)}`);
+          rmsSum = 0; rmsN = 0; rmsPeak = 0;
+        }
         batcher.push(pcm);
         break;
       }
