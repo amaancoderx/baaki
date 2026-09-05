@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     daysOverdue: c.daysOverdue,
     today: c.today,
     shortUrl: ledger.external(body.invoiceId)?.shortUrl,
-  }, s, p, body.callSid ?? "voice");
+  }, s, p, body.callSid ?? "voice", now);
 
   // A date agreed out loud is the least durable thing here: nobody can look it
   // up and the buyer has nothing showing what they agreed to. Put it in writing

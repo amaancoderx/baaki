@@ -734,6 +734,11 @@ export class Baaki {
           amount: c.invoice.amount - c.invoice.amountPaid,
           description: `Invoice ${c.invoice.id} (reissued)`,
           receipt: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
+          // Each reissue overwrites the stored id, so without this a payment
+          // on any earlier generation of the link matched nothing and the
+          // money sat unclaimed. The notes name the ledger invoice no matter
+          // which generation gets paid.
+          notes: { baaki_invoice_id: invoiceId },
           expireBy: Math.floor(Math.max(
             Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`),
             Date.now() + 30 * 60_000,
@@ -978,6 +983,12 @@ export class Baaki {
       if (ev.paymentLinkId && ext.razorpayPaymentLinkId === ev.paymentLinkId) return inv.id;
       if (ev.invoiceId && ext.razorpayInvoiceId === ev.invoiceId) return inv.id;
       if (ev.virtualAccountId && ext.virtualAccountId === ev.virtualAccountId) return inv.id;
+    }
+    // The notes name the ledger invoice directly, surviving any number of
+    // reissues overwriting the stored id.
+    const direct = ev.notes?.baaki_invoice_id;
+    if (direct) {
+      try { if (ledger.invoice(direct)) return direct; } catch { /* stale note */ }
     }
     // Fall back to the notes we set when creating the link.
     const cid = ev.notes?.baaki_contact_id;

@@ -21,7 +21,7 @@ export const VOICE_TOOLS = [
       type: "object",
       properties: {
         date: { type: "string", description: "ISO date YYYY-MM-DD, resolved against today." },
-        note: { type: "string", description: "What they actually said, briefly." },
+        note: { type: "string", description: "The buyer's exact words as heard, verbatim, in their language. Not a summary." },
       },
       required: ["date"],
     },
@@ -106,8 +106,11 @@ export async function runVoiceTool(
   store: LedgerStoreLike,
   policy: Policy = DEFAULT_POLICY,
   callSid = "browser",
+  nowMs?: number,
 ): Promise<ToolOutcome> {
-  const now = Date.now();
+  // The ledger's clock. On a moved calendar these entries were stamped with
+  // the wall clock, so everything agreed on a Day-12 call rendered under Day 0.
+  const now = nowMs ?? Date.now();
   const evidence = [`call:${callSid}`];
 
   switch (name) {
@@ -166,6 +169,7 @@ export async function runVoiceTool(
           amount: ctx.outstanding,
           description: `Invoice ${ctx.invoiceId} (sent during a call)`,
           receipt: `baaki_call_${ctx.invoiceId}_${now}`,
+          notes: { baaki_invoice_id: ctx.invoiceId },
           expireBy: Math.floor(Math.max(
             Date.parse(`${addDays(ctx.today, 14)}T18:00:00+05:30`),
             Date.now() + 30 * 60_000,
