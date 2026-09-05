@@ -144,6 +144,11 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
   const [inv, setInv] = useState<Inv | null>(null);
   const [clock, setClock] = useState<{ simulatedDate: string; daysAhead: number } | null>(null);
   const [lastNote, setLastNote] = useState<string | null>(null);
+  // The day the clock was advanced to and what the AI said about it. The audit
+  // log deliberately does not re-record an unchanged wait, so on quiet days the
+  // timeline has no new row of its own; this screen exists to show that
+  // waiting is a decision, so the row is synthesized here instead.
+  const [monitor, setMonitor] = useState<{ date: string; body: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async (id?: string | null) => {
@@ -215,8 +220,16 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
       } else if (!r.ok) {
         throw new Error(j.error ?? "could not advance");
       } else {
-        const mine = (j.report?.actions ?? []).filter((a: { invoiceId: string; kind: string }) => a.invoiceId === invId && a.kind !== "none");
-        setLastNote(mine.length === 0 ? "Moved forward. The AI looked at this invoice and chose to wait." : null);
+        const all = (j.report?.actions ?? []).filter((a: { invoiceId: string }) => a.invoiceId === invId);
+        const acted = all.filter((a: { kind: string }) => a.kind !== "none");
+        if (acted.length === 0) {
+          const why = (all[0] as { rationale?: string } | undefined)?.rationale
+            ?? "Nothing needed today. Monitoring the invoice.";
+          setMonitor({ date: j.simulatedDate, body: why });
+        } else {
+          setMonitor(null);
+        }
+        setLastNote(null);
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -384,6 +397,28 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
               );
             })}
 
+            {monitor && !paid && (() => {
+              const mDay = dayOf(Date.parse(`${monitor.date}T12:00:00+05:30`), inv.invoice.issuedOn);
+              const lastEv = tl.events[tl.events.length - 1];
+              if (lastEv && mDay <= lastEv.day) return null;
+              return (
+                <div>
+                  <div className="day-head" style={{ paddingTop: 14 }}>
+                    <span>DAY {mDay}</span>
+                    <span style={{ color: "var(--text-4)", fontWeight: 400 }}>
+                      {new Date(Date.parse(`${monitor.date}T12:00:00+05:30`)).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, padding: "8px 2px", borderLeft: "2px solid var(--hairline)", marginLeft: 6, paddingLeft: 14 }}>
+                    <span style={{ fontSize: 15 }}>🤖</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>AI decided to wait</div>
+                      <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{monitor.body}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {lastNote && !paid && (
               <div style={{ display: "flex", gap: 10, padding: "8px 2px", borderLeft: "2px solid var(--hairline)", marginLeft: 6, paddingLeft: 14 }}>
                 <span style={{ fontSize: 15 }}>🤖</span>
