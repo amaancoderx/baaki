@@ -107,7 +107,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
     try {
       const r = await fetch("/api/demo", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "advance", ...(days ? { days } : {}) }),
+        body: JSON.stringify({ action: "advance", ...(days ? { days } : {}), ...(invId ? { invoiceId: invId } : {}) }),
       });
       const j = await r.json();
       if (r.status === 409) {
@@ -278,7 +278,9 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
                 day: dayOf(Date.parse(`${sd}T12:00:00+05:30`), inv.invoice.issuedOn),
                 kind: "skip" as const,
                 title: "No-contact day, skipped",
-                body: `${new Date(Date.parse(`${sd}T12:00:00+05:30`)).toLocaleDateString("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" })}: the contact window excludes Sundays and holidays, so the clock moved on.`,
+                body: new Date(Date.parse(`${sd}T12:00:00+05:30`)).getUTCDay() === 0 || new Date(Date.parse(`${sd}T12:00:00+05:30`)).toLocaleDateString("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }) === "Sunday"
+                  ? "Sunday: the contact window excludes it, so the clock moved on."
+                  : "Public holiday on the IN-KA calendar: the contact window excludes it, so the clock moved on.",
               }))}
             />
             {monitor && !paid && (() => {
@@ -314,7 +316,7 @@ export function DemoRun({ contacts, state, compressed }: { contacts: Contact[]; 
             {!paid && (
               <div className="explain" style={{ marginTop: 14 }}>
                 <span className="tag">Next AI action</span>
-                {tl.nextOn
+                {tl.nextOn && (!clock || tl.nextOn > clock.simulatedDate)
                   ? <>Scheduled for <strong>{tl.nextOn}</strong>. Jump the clock there and it happens for real.</>
                   : <>The AI reviews this invoice on the next day it runs.</>}
                 {" "}Reply to the WhatsApp from your phone at any point: the reply lands

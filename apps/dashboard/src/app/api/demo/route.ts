@@ -54,7 +54,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { action, days, which } = (await req.json().catch(() => ({}))) as { action?: string; days?: number; which?: string };
+  const { action, days, which, invoiceId } = (await req.json().catch(() => ({}))) as { action?: string; days?: number; which?: string; invoiceId?: string };
 
   if (action === "reset") {
     await setDemoOffset(0);
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
       cursor = addDays(cursor, 1);
     }
     const b0 = await baaki({ origin: new URL(req.url).origin });
-    const rep = await b0.tick();
+    const rep = await b0.tick(invoiceId);
     if (rep.lockHeld) return json({ error: "another pass is holding the ledger, try again shortly" }, 409);
     return json({
       ok: true, jumped: true, offsetMs: offset,
@@ -174,7 +174,9 @@ export async function POST(req: Request) {
     // waiting on a person, not on the calendar, and letting one drive the clock
     // pins it to today forever. That is exactly what happened, because invoices
     // held before decisions were recorded carry no review date at all.
-    const live = open.filter((inv) => !["human_hold", "disputed"].includes(inv.substate));
+    const live = open.filter((inv) =>
+      !["human_hold", "disputed"].includes(inv.substate)
+      && (!invoiceId || inv.id === invoiceId));
     let target: CivilDate | null = null;
     for (const inv of live) {
       const c = ledger.caseFile(inv.id, simNow);
@@ -213,7 +215,7 @@ export async function POST(req: Request) {
     // reusing one instance across a jump would run every tick on the date the
     // loop started and nothing would ever happen.
     const b = await baaki({ origin });
-    const report = await b.tick();
+    const report = await b.tick(invoiceId);
     if (report.lockHeld) {
       return json({
         error: "another pass is holding the ledger. A tick that was interrupted keeps the lock until it expires, up to five minutes. Try again shortly.",

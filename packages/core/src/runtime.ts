@@ -433,7 +433,7 @@ export class Baaki {
     return this.#tick();
   }
 
-  async #tick(): Promise<TickReport> {
+  async #tick(only?: string): Promise<TickReport> {
     const now = this.cfg.clock.now();
     const today = this.today();
     const actions: TickAction[] = [];
@@ -442,6 +442,7 @@ export class Baaki {
     ledger.refreshAll(today);
 
     for (const inv of ledger.openInvoices()) {
+      if (only && inv.id !== only) continue;
       const c = ledger.caseFile(inv.id, now);
       const r = route(c);
 
