@@ -191,8 +191,11 @@ export async function runVoiceTool(
           appSecret: process.env.WA_APP_SECRET,
           dryRun: process.env.WA_DRY_RUN === "1",
         });
-        const lastReply = l0.repliesFor?.(ctx.invoiceId)?.at(-1);
-        const inSession = lastReply ? now - lastReply.ts <= 24 * 3600_000 : false;
+        // Wall clock, and only a genuine inbound WhatsApp: the ledger clock
+        // sits weeks ahead in a demo, and the call itself opens no window.
+        const rs = l0.repliesFor?.(ctx.invoiceId) ?? [];
+        const lastWa = [...rs].reverse().find((r) => r.channel === "whatsapp" && !r.text.startsWith("[voice call]"));
+        const inSession = lastWa ? Date.now() - lastWa.ts <= 24 * 3600_000 : false;
         try {
           const res = inSession
             ? await wa.sendText(ctx.buyerPhone, `Namaste ${ctx.buyerName}, jaisa abhi call par baat hui, ${formatINR(ctx.outstanding)} ka payment link:\n\n${shortUrl}`)

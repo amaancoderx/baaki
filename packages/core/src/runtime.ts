@@ -777,6 +777,23 @@ export class Baaki {
   }
 
   /**
+   * Whether Meta's 24-hour session window is open for this invoice's buyer.
+   *
+   * Two mistakes lived here. The window was measured with the ledger clock,
+   * and on a moved calendar an hour-old real reply looked weeks stale, so
+   * follow-ups fell back to a bare template while a genuine window stood open.
+   * And promises captured on phone calls are recorded as replies, but a phone
+   * call does not open a WhatsApp window; counting one made sends that Meta
+   * would refuse. Wall clock, genuine inbound WhatsApp only.
+   */
+  static waSessionOpen(replies: readonly { channel: string; text: string; ts: number }[]): boolean {
+    const last = [...replies].reverse().find(
+      (r) => r.channel === "whatsapp" && !r.text.startsWith("[voice call]"),
+    );
+    return last ? Date.now() - last.ts <= 24 * 3600_000 : false;
+  }
+
+  /**
    * A promise made on the phone, put in writing.
    *
    * A date agreed out loud is the least durable thing in this system: nobody
@@ -808,8 +825,7 @@ export class Baaki {
     // The buyer spoke to us on the phone, which does not open a WhatsApp
     // session window: only an inbound WhatsApp message does. So this goes as
     // free-form when a window is open and as a template otherwise.
-    const lastReply = fresh.replies.at(-1);
-    const inSession = lastReply ? now - lastReply.ts <= 24 * 3600_000 : false;
+    const inSession = Baaki.waSessionOpen(fresh.replies);
 
     try {
       if (inSession) {
@@ -893,8 +909,7 @@ export class Baaki {
     const suffix = shortUrl.split("/").pop() ?? "";
     const outstanding = invoice.amount - invoice.amountPaid;
 
-    const lastReply = ledger.repliesFor(invoice.id).at(-1);
-    const inSession = lastReply ? this.cfg.clock.now() - lastReply.ts <= 24 * 3600_000 : false;
+    const inSession = Baaki.waSessionOpen(ledger.repliesFor(invoice.id));
 
     if (inSession) {
       const res = await this.cfg.whatsapp.sendText(phone, `${a.draft}${shortUrl ? `\n\n${shortUrl}` : ""}`);
