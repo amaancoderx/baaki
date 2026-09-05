@@ -85,7 +85,7 @@ export function voiceCall(c: CaseFile): FastDecision | null {
   // has to have been tried again in between.
   if (c.lastCallAt !== null && !c.touches.some((t) => t.ts > c.lastCallAt!)) return null;
   if (c.touches.length === 0) return null;
-  if (["paid", "closed", "disputed"].includes(inv.substate)) return null;
+  if (["paid", "closed", "disputed", "human_hold"].includes(inv.substate)) return null;
   if (c.memory.doNotContact) return null;
   if (daysBetween(inv.campaignEndsOn, c.today) > 0) return null;
 

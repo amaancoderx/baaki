@@ -104,7 +104,10 @@ export const minGap: Guard = (c, a, nowMs) => {
 
 export const noContactWhileHeld: Guard = (c, a, nowMs) => {
   const n = "no_contact_while_held";
-  if (!isOutbound(a)) return pass(n);
+  // Calls included. This gated only messages, so a case a person already owned
+  // could still have the phone ring on it: the least reviewable channel was
+  // the one exempt from the freeze.
+  if (!reachesBuyer(a)) return pass(n);
   const today: CivilDate = istParts(nowMs).date;
   const s = c.invoice.substate;
 

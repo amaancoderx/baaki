@@ -58,7 +58,23 @@ export async function POST(req: Request) {
 
   if (action === "reset") {
     await setDemoOffset(0);
-    return json({ ok: true, offsetMs: 0, simulatedDate: istParts(Date.now()).date });
+    // Close whatever the previous rehearsal left open against the demo buyer.
+    // Resetting only the clock left every earlier run's invoice alive, and the
+    // oldest of them, weeks overdue on the moved calendar, phoned the merchant
+    // mid-demo about a bill from a take that no longer existed.
+    const closed: string[] = [];
+    await store().update((ledger) => {
+      const today = istParts(Date.now()).date;
+      for (const inv of ledger.openInvoices()) {
+        if (inv.buyerId !== "c_live_demo") continue;
+        ledger.setSubstate(inv.id, "closed",
+          "Demo reset. This invoice belonged to an earlier take and is closed so nothing keeps chasing it.",
+          "human", [inv.id], { closedOn: today, closedReason: "demo reset" });
+        closed.push(inv.id);
+      }
+      return null;
+    }, await policy());
+    return json({ ok: true, offsetMs: 0, simulatedDate: istParts(Date.now()).date, closed });
   }
 
   if (action === "policy") {
