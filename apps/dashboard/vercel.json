@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["iad1"],
+  "functions": {
+    "src/app/api/tick/route.ts": { "maxDuration": 300 },
+    "src/app/api/invoices/route.ts": { "maxDuration": 120 },
+    "src/app/api/webhooks/whatsapp/route.ts": { "maxDuration": 120 }
+  }
+}

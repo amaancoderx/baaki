@@ -1,7 +1,9 @@
-import {
-  DEFAULT_POLICY, LedgerStore, addDays, formatINR, istParts, razorpay,
-  type CivilDate, type Ledger, type Policy,
-} from "@baaki/core";
+import { addDays, type CivilDate } from "../time.js";
+import { formatINR } from "../money.js";
+import { razorpay } from "../razorpay/index.js";
+import type { LedgerStoreLike } from "../store.js";
+import { DEFAULT_POLICY, type Policy } from "../types.js";
+import type { Ledger } from "../ledger.js";
 
 /**
  * In-call tools. A voice call is the least reviewable channel there is — no
@@ -69,11 +71,38 @@ export interface VoiceContext {
 
 export interface ToolOutcome { ok: boolean; detail: string; endCall?: boolean }
 
+/**
+ * When the voice bridge runs away from the ledger — on Vercel next to Twilio,
+ * while the ledger stays on the merchant's machine — tool effects travel over
+ * HTTP instead of touching the store directly. Only tool calls take this hop,
+ * a handful per call; the audio path never leaves the region it started in.
+ */
+export async function runVoiceToolRemote(
+  apiBase: string,
+  name: string,
+  args: Record<string, unknown>,
+  ctx: VoiceContext,
+  callSid: string,
+): Promise<ToolOutcome> {
+  try {
+    const res = await fetch(`${apiBase}/api/voice/tool`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId: ctx.invoiceId, name, args, callSid }),
+    });
+    if (!res.ok) return { ok: false, detail: `ledger returned ${res.status}` };
+    return (await res.json()) as ToolOutcome;
+  } catch (e) {
+    // A failed write must not be reported to the buyer as recorded.
+    return { ok: false, detail: `could not reach the ledger: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
 export async function runVoiceTool(
   name: string,
   args: Record<string, unknown>,
   ctx: VoiceContext,
-  store: LedgerStore,
+  store: LedgerStoreLike,
   policy: Policy = DEFAULT_POLICY,
   callSid = "browser",
 ): Promise<ToolOutcome> {

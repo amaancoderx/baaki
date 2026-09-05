@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getState, type LiveInvoice } from "@/lib/api";
+import { readState } from "@/lib/server";
+import type { AppState, LiveInvoice } from "@/lib/api";
 import { formatINR, formatINRCompact, formatDateShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +38,9 @@ function Row({ i }: { i: LiveInvoice }) {
 }
 
 export default async function TodayPage() {
-  let state;
+  let state: AppState;
   try {
-    state = await getState();
+    state = await readState();
   } catch {
     return (
       <div className="container">

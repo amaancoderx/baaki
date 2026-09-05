@@ -50,4 +50,15 @@ export class LedgerStore {
   }
 }
 
+/**
+ * What Baaki needs from a store. The file-backed one is synchronous and the
+ * Redis one is not, so callers await either; awaiting a non-promise costs a
+ * microtask and lets the same runtime serve a laptop and a serverless function.
+ */
+export interface LedgerStoreLike {
+  load(policy?: Policy): Ledger | Promise<Ledger>;
+  save(ledger: Ledger): void | Promise<void>;
+  update<T>(fn: (l: Ledger) => Promise<T> | T, policy?: Policy): Promise<T>;
+}
+
 export const defaultStorePath = (root = process.cwd()): string => join(root, "data", "ledger.json");

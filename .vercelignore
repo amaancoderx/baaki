@@ -1,0 +1,5 @@
+node_modules
+.llm-cache
+data
+evals
+deploy

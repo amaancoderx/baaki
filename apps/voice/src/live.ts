@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import type { LedgerStore, Policy } from "@baaki/core";
-import { runVoiceTool, systemInstruction, VOICE_TOOLS, type VoiceContext } from "./tools.js";
+import { runVoiceTool, runVoiceToolRemote, systemInstruction, VOICE_TOOLS, type VoiceContext } from "@baaki/core";
 
 /**
  * One Gemini Live session per call. Audio in, audio out, tool calls in the
@@ -18,6 +18,8 @@ export interface LiveSessionOptions {
   store: LedgerStore;
   policy: Policy;
   callSid?: string;
+  /** Set when the ledger lives elsewhere; tool effects go over HTTP. */
+  apiBase?: string;
   /** 24 kHz PCM chunks from the model. */
   onAudio: (pcm24: Buffer) => void;
   onTranscript: (who: "buyer" | "agent", text: string) => void;
@@ -129,7 +131,9 @@ export class LiveSession {
       for (const call of msg.toolCall.functionCalls as { id?: string; name: string; args?: Record<string, unknown> }[]) {
         let outcome: { ok: boolean; detail: string; endCall?: boolean };
         try {
-          outcome = await runVoiceTool(call.name, call.args ?? {}, this.o.ctx, this.o.store, this.o.policy, this.o.callSid);
+          outcome = this.o.apiBase
+            ? await runVoiceToolRemote(this.o.apiBase, call.name, call.args ?? {}, this.o.ctx, this.o.callSid ?? "call")
+            : await runVoiceTool(call.name, call.args ?? {}, this.o.ctx, this.o.store, this.o.policy, this.o.callSid);
         } catch (e) {
           outcome = { ok: false, detail: e instanceof Error ? e.message : String(e) };
         }

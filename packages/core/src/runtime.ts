@@ -9,7 +9,7 @@ import { formatINR, type Paise } from "./money.js";
 import { fastPath } from "./policy.js";
 import { parseRzpEvent, type RazorpayClient, type RzpEvent } from "./razorpay/index.js";
 import { route } from "./router.js";
-import type { LedgerStore } from "./store.js";
+import type { LedgerStoreLike } from "./store.js";
 import { addDays, formatCivilShort, istParts, type Clock, type CivilDate } from "./time.js";
 import { templateDraft } from "./drafts.js";
 import { understandReply } from "./understand.js";
@@ -25,7 +25,7 @@ export const RUNG_TEMPLATE: Record<Rung, string | null> = {
 };
 
 export interface BaakiConfig {
-  store: LedgerStore;
+  store: LedgerStoreLike;
   policy: Policy;
   razorpay?: RazorpayClient;
   whatsapp?: WhatsappClient;
@@ -97,7 +97,7 @@ export interface TickReport {
 export class Baaki {
   constructor(private readonly cfg: BaakiConfig) {}
 
-  get store(): LedgerStore { return this.cfg.store; }
+  get store(): LedgerStoreLike { return this.cfg.store; }
   get policy(): Policy { return this.cfg.policy; }
 
   private today(): CivilDate {
@@ -216,7 +216,7 @@ export class Baaki {
     const today = this.today();
     const actions: TickAction[] = [];
 
-    const ledger = this.cfg.store.load(this.cfg.policy);
+    const ledger = await this.cfg.store.load(this.cfg.policy);
     ledger.refreshAll(today);
 
     for (const inv of ledger.openInvoices()) {
@@ -258,7 +258,7 @@ export class Baaki {
       actions.push(entry);
     }
 
-    this.cfg.store.save(ledger);
+    await this.cfg.store.save(ledger);
 
     return {
       ranAt: now, today,
@@ -509,12 +509,12 @@ export class Baaki {
     return { ok: true, handled };
   }
 
-  auditExport(format: "json" | "csv"): string {
-    const l = this.cfg.store.load(this.cfg.policy);
+  async auditExport(format: "json" | "csv"): Promise<string> {
+    const l = await this.cfg.store.load(this.cfg.policy);
     return format === "csv" ? l.audit.export("csv") : l.audit.export("json");
   }
 
-  auditEntries(): readonly AuditEntry[] {
-    return this.cfg.store.load(this.cfg.policy).audit.all();
+  async auditEntries(): Promise<readonly AuditEntry[]> {
+    return (await this.cfg.store.load(this.cfg.policy)).audit.all();
   }
 }

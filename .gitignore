@@ -16,3 +16,4 @@ data/ledger.json
 data/policy.json
 data/contacts.json
 data/calls/
+.vercel

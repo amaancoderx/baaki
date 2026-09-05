@@ -1,12 +1,13 @@
 import { NewInvoice } from "@/components/NewInvoice";
-import { getState } from "@/lib/api";
+import { readState } from "@/lib/server";
+import type { AppState } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewInvoicePage() {
-  let state;
+  let state: AppState;
   try {
-    state = await getState();
+    state = await readState();
   } catch {
     return (
       <div className="container">

@@ -1,6 +1,8 @@
-import {
-  DEFAULT_POLICY, LedgerStore, formatINR, gemini, type Llm, type Policy, type ToolCall,
-} from "@baaki/core";
+import { formatINR } from "../money.js";
+import { gemini } from "../llm/gemini.js";
+import type { Llm, ToolCall } from "../llm/types.js";
+import type { LedgerStoreLike } from "../store.js";
+import type { Policy } from "../types.js";
 import { runVoiceTool, VOICE_TOOLS, type VoiceContext } from "./tools.js";
 
 /**
@@ -137,7 +139,7 @@ export async function handleTurn(
   speech: string,
   confidence: number,
   ctx: VoiceContext,
-  store: LedgerStore,
+  store: LedgerStoreLike,
   policy: Policy,
   callSid: string,
   actionUrl: string,

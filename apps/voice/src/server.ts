@@ -5,10 +5,10 @@ import {
 } from "@baaki/core";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { LiveSession } from "./live.js";
-import { handleTurn, openingLine, sayAndListen, sayAndHangUp } from "./gather.js";
+import { handleTurn, openingLine, sayAndListen, sayAndHangUp } from "@baaki/core";
 import { geminiToTwilio, twilioToGemini } from "./audio.js";
 import { AudioPacer, InboundBatcher } from "./pacer.js";
-import type { VoiceContext } from "./tools.js";
+import type { VoiceContext } from "@baaki/core";
 
 const PORT = Number(process.env.VOICE_PORT ?? 3002);
 const store = new LedgerStore("data/ledger.json");
@@ -19,6 +19,23 @@ const loadPolicy = (): Policy =>
     : DEFAULT_POLICY;
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+async function remoteContext(invoiceId: string): Promise<VoiceContext> {
+  const res = await fetch(`${process.env.BAAKI_API}/api/state`);
+  const state = (await res.json()) as { invoices: any[] };
+  const row = state.invoices.find((i) => i.invoice.id === invoiceId);
+  if (!row) throw new Error(`unknown invoice ${invoiceId}`);
+  return {
+    invoiceId,
+    buyerName: row.buyer.name,
+    buyerPhone: row.buyer.phone,
+    outstanding: row.outstanding,
+    dueOn: row.invoice.dueOn,
+    daysOverdue: row.daysOverdue,
+    today: new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10),
+    shortUrl: row.external?.shortUrl,
+  };
+}
 
 function contextFor(invoiceId: string): VoiceContext {
   const policy = loadPolicy();
@@ -157,7 +174,7 @@ wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     if (session) return;
     let ctx: VoiceContext;
     try {
-      ctx = contextFor(id);
+      ctx = process.env.BAAKI_API ? await remoteContext(id) : contextFor(id);
     } catch {
       log(`  unknown invoice "${id}" — closing`);
       if (!isTwilio) ws.send(JSON.stringify({ type: "error", message: `unknown invoice ${id}` }));
@@ -173,6 +190,7 @@ wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
       store,
       policy: loadPolicy(),
       callSid,
+      ...(process.env.BAAKI_API ? { apiBase: process.env.BAAKI_API } : {}),
       onAudio: (pcm24) => {
         if (ws.readyState !== ws.OPEN) return;
         if (isTwilio) {

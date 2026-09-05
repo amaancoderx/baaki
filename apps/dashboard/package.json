@@ -8,13 +8,18 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
+    "@baaki/core": "workspace:*",
+    "@upstash/redis": "^1.38.4",
+    "@vercel/functions": "^3.9.5",
     "next": "^15.1.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.7.2"
   }
 }

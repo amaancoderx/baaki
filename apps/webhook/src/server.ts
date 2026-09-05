@@ -144,6 +144,31 @@ const server = createServer(async (req, res) => {
       return json(res, 200, out);
     }
 
+    // Executed by the voice bridge when it runs in another region.
+    if (path === "/api/voice/tool" && req.method === "POST") {
+      const body = JSON.parse(await readBody(req)) as {
+        invoiceId: string; name: string; args: Record<string, unknown>; callSid?: string;
+      };
+      const { runVoiceTool, LedgerStore } = await import("@baaki/core");
+      const policy = loadPolicy();
+      const store = new LedgerStore("data/ledger.json");
+      const ledger = store.load(policy);
+      const c = ledger.caseFile(body.invoiceId, Date.now());
+      const ctx = {
+        invoiceId: body.invoiceId,
+        buyerName: c.buyer.name,
+        buyerPhone: c.buyer.phone,
+        outstanding: c.invoice.amount - c.invoice.amountPaid,
+        dueOn: c.invoice.dueOn,
+        daysOverdue: c.daysOverdue,
+        today: c.today,
+        shortUrl: ledger.external(body.invoiceId)?.shortUrl,
+      };
+      const outcome = await runVoiceTool(body.name, body.args, ctx, store, policy, body.callSid ?? "remote");
+      log(`voice tool ${body.name} (${body.invoiceId}) -> ${outcome.detail}`);
+      return json(res, 200, outcome);
+    }
+
     if (path === "/api/tick" && req.method === "POST") {
       const baaki = buildBaaki();
       const report = await baaki.tick();
@@ -154,7 +179,7 @@ const server = createServer(async (req, res) => {
     if (path === "/api/audit" && req.method === "GET") {
       const baaki = buildBaaki();
       const fmt = url.searchParams.get("format") === "csv" ? "csv" : "json";
-      const body = baaki.auditExport(fmt);
+      const body = await baaki.auditExport(fmt);
       res.writeHead(200, {
         "Content-Type": fmt === "csv" ? "text/csv" : "application/json",
         "Content-Disposition": `attachment; filename="baaki-audit.${fmt}"`,

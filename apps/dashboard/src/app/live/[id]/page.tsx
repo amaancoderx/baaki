@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getState, type LiveInvoice } from "@/lib/api";
+import { readState } from "@/lib/server";
+import type { AppState, LiveInvoice } from "@/lib/api";
 import { formatINR, formatDateShort, formatTs } from "@/lib/format";
 import { CallPanel } from "@/components/CallPanel";
 
@@ -85,8 +86,8 @@ function Timeline({ i }: { i: LiveInvoice }) {
 
 export default async function LiveCasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let state;
-  try { state = await getState(); } catch { notFound(); }
+  let state: AppState;
+  try { state = await readState(); } catch { notFound(); }
   const i = state!.invoices.find((x) => x.invoice.id === id);
   if (!i) notFound();
 

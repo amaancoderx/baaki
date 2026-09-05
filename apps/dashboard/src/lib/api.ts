@@ -1,5 +1,9 @@
 /** The webhook service is the only writer of ledger state; the dashboard reads it. */
-export const API = process.env.NEXT_PUBLIC_API ?? "http://localhost:3001";
+/**
+ * Same origin in production: the dashboard and its API are one deployment.
+ * NEXT_PUBLIC_API only exists for pointing a local UI at a running service.
+ */
+export const API = process.env.NEXT_PUBLIC_API ?? "";
 
 export interface Contact {
   id: string; name: string; phone: string; email?: string; city: string;
@@ -61,7 +65,8 @@ export interface TickReport {
 }
 
 export async function getState(): Promise<AppState> {
-  const r = await fetch(`${API}/api/state`, { cache: "no-store" });
+  const base = API || (typeof window === "undefined" ? process.env.INTERNAL_ORIGIN ?? "http://localhost:3000" : "");
+  const r = await fetch(`${base}/api/state`, { cache: "no-store" });
   if (!r.ok) throw new Error(`state ${r.status}`);
   return r.json();
 }
