@@ -17,4 +17,4 @@ data/policy.json
 data/contacts.json
 data/calls/
 .vercel
-.agent-cache.json
+.agent-cache*.json
