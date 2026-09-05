@@ -73,7 +73,7 @@ export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerNa
         if (m.type === "error") { setErr(m.message); setState("ended"); }
       };
       ws.onclose = () => setState((s) => (s === "ended" ? s : "ended"));
-      ws.onerror = () => setErr("Voice service se connect nahi hua. `pnpm voice` chal raha hai?");
+      ws.onerror = () => setErr("Could not reach the voice service. Is `pnpm voice` running?");
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
@@ -109,29 +109,28 @@ export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerNa
 
   return (
     <div className="panel" style={{ marginTop: 12 }}>
-      <div className="overline" style={{ marginBottom: 8 }}>Call karo</div>
+      <div className="overline" style={{ marginBottom: 8 }}>Place a call</div>
 
       {state === "idle" && (
         <>
           <p className="explain-inline" style={{ marginBottom: 10 }}>
-            Browser se {buyerName} ko call karo. Agent Hindi/Hinglish mein baat karega,
-            pehle consent lega, aur jo promise ya dispute mile woh seedha ledger mein
-            likh dega. Agent bargain nahi karta — discount ya settlement ki baat aayi
-            to insaan ko de dega.
+            Call {buyerName} from the browser. The agent speaks Hindi and Hinglish, takes
+            consent first, and writes any promise or dispute straight into the ledger.
+            It does not negotiate: a discount or settlement request is handed to a person.
           </p>
-          <button className="btn btn-primary" onClick={start}>Call shuru karo</button>
+          <button className="btn btn-primary" onClick={start}>Start call</button>
         </>
       )}
 
-      {state === "connecting" && <p style={{ fontSize: 13 }}><span className="spinner" /> Connect ho raha hai…</p>}
+      {state === "connecting" && <p style={{ fontSize: 13 }}><span className="spinner" /> Connecting…</p>}
 
       {(state === "live" || state === "ended") && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             {state === "live"
-              ? <span className="chip chip-accent"><span className="dot pulse" /> call chalu hai</span>
-              : <span className="chip chip-neutral">call khatam</span>}
-            {state === "live" && <button className="btn btn-quiet" onClick={hangUp}>Rakh do</button>}
+              ? <span className="chip chip-accent"><span className="dot pulse" /> call in progress</span>
+              : <span className="chip chip-neutral">call ended</span>}
+            {state === "live" && <button className="btn btn-quiet" onClick={hangUp}>Hang up</button>}
           </div>
 
           <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -158,10 +157,10 @@ export function CallPanel({ invoiceId, buyerName }: { invoiceId: string; buyerNa
 
           {state === "live" && (
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <input className="input" placeholder="Ya type karke bolo…" value={typed}
+              <input className="input" placeholder="Or type instead…" value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendTyped()} />
-              <button className="btn btn-ghost" onClick={sendTyped}>Bhejo</button>
+              <button className="btn btn-ghost" onClick={sendTyped}>Send</button>
             </div>
           )}
         </>

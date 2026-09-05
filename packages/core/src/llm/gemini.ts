@@ -225,6 +225,7 @@ export function gemini(opts: GeminiOptions): Llm {
         generationConfig: {
           temperature: req.temperature ?? 0,
           maxOutputTokens: req.maxOutputTokens ?? 2048,
+          ...(req.thinkingBudget === undefined ? {} : { thinkingConfig: { thinkingBudget: req.thinkingBudget } }),
           responseMimeType: "application/json",
           responseSchema: toGeminiSchema(req.schema),
         },
@@ -266,6 +267,7 @@ export function gemini(opts: GeminiOptions): Llm {
         generationConfig: {
           temperature: req.temperature ?? 0,
           maxOutputTokens: req.maxOutputTokens ?? 2048,
+          ...(req.thinkingBudget === undefined ? {} : { thinkingConfig: { thinkingBudget: req.thinkingBudget } }),
         },
       };
       const key = req.cacheKey ?? JSON.stringify(body);

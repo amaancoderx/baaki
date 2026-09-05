@@ -70,29 +70,29 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
     return (
       <div className="rise" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="explain">
-          <span className="tag">Ho gaya</span>
-          Invoice <strong>{result.invoiceId}</strong> ban gaya aur Razorpay pe live
-          payment link bhi ready hai. Ab Baaki khud dekhega: due date se pehle
-          reminder, phir ladder ke hisaab se follow-up, aur beech mein buyer ka
-          reply aaya to woh padhega. Aapko kuch karne ki zaroorat nahi.
+          <span className="tag">Created</span>
+          Invoice <strong>{result.invoiceId}</strong> is live with a real Razorpay payment
+          link. Baaki takes it from here: a reminder before the due date, follow-ups
+          up the ladder after it, and if the buyer replies, Gemini reads the reply and
+          adjusts. Nothing further is needed from you.
         </div>
         {result.shortUrl && (
           <div className="panel">
-            <div className="overline" style={{ marginBottom: 8 }}>Live payment link</div>
+            <div className="overline" style={{ marginBottom: 8 }}>Payment link</div>
             <a href={result.shortUrl} target="_blank" rel="noreferrer"
               className="mono" style={{ color: "var(--accent-deep)", fontSize: 14 }}>
               {result.shortUrl}
             </a>
             <p className="explain-inline">
-              Ye asli Razorpay test link hai. Ise pay karoge to webhook aayega aur
-              case apne aap close ho jayega — koi manual entry nahi.
+              A real Razorpay test link. Paying it fires a webhook and closes the case
+              automatically — nothing is entered by hand.
             </p>
           </div>
         )}
         <div style={{ display: "flex", gap: 8 }}>
-          <a href="/" className="btn btn-primary">Today dekho</a>
+          <a href="/" className="btn btn-primary">View invoices</a>
           <button className="btn btn-ghost" onClick={() => { setResult(null); setStep(1); setPicked(null); }}>
-            Ek aur invoice banao
+            Create another
           </button>
         </div>
       </div>
@@ -102,7 +102,7 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
   return (
     <div>
       <div className="steps">
-        {([[1, "Buyer chuno"], [2, "Amount aur rules"], [3, "Agent chalu"]] as const).map(([n, label]) => (
+        {([[1, "Choose a buyer"], [2, "Amount and rules"], [3, "Agent takes over"]] as const).map(([n, label]) => (
           <div key={n} className={`step ${step === n ? "active" : step > n ? "done" : ""}`}>
             <span className="step-n">{step > n ? "✓" : n}</span>{label}
           </div>
@@ -113,12 +113,11 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
         <div className="rise" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="explain">
             <span className="tag">Step 1</span>
-            Kisko bill bhejna hai? Neeche aapki contact list hai. Jo contact{" "}
-            <strong>WhatsApp ready</strong> hai, sirf usi pe asli message jayega —
-            baaki synthetic hain, unke liye system sab kuch karega par message
-            actually deliver nahi hoga.
+            Who are you billing? Contacts marked <strong>WhatsApp ready</strong> can
+            receive real messages. The rest are sample data — the system will still
+            do everything, but nothing will actually be delivered.
           </div>
-          <input className="input" placeholder="Naam, sheher ya number se dhoondo…"
+          <input className="input" placeholder="Search by name, city or number"
             value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="card" style={{ maxHeight: 340, overflowY: "auto", padding: 6 }}>
             {filtered.map((c) => (
@@ -128,20 +127,20 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500 }}>{c.name}</div>
                   <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-                    {c.city} · +{c.phone} · net {c.termDays}
+                    {c.city} · +{c.phone} · {c.termDays}-day terms
                   </div>
                 </div>
                 {c.sendable
                   ? <span className="chip chip-accent">WhatsApp ready</span>
-                  : <span className="chip chip-neutral">synthetic</span>}
+                  : <span className="chip chip-neutral">Sample</span>}
               </div>
             ))}
-            {filtered.length === 0 && <p style={{ padding: 12, fontSize: 13, color: "var(--text-3)" }}>Koi contact nahi mila.</p>}
+            {filtered.length === 0 && <p style={{ padding: 12, fontSize: 13, color: "var(--text-3)" }}>No contacts match that search.</p>}
           </div>
           <div>
             <button className="btn btn-primary" disabled={!picked} onClick={() => setStep(2)}
               style={{ opacity: picked ? 1 : 0.5 }}>
-              Aage badho{picked ? ` — ${picked.name}` : ""}
+              Continue{picked ? ` with ${picked.name}` : ""}
             </button>
           </div>
         </div>
@@ -151,10 +150,10 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
         <div className="rise" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="explain">
             <span className="tag">Step 2</span>
-            Amount aur payment terms daalo. Rules woh limits hain jo agent kabhi
-            cross nahi kar sakta — kitne message max, beech mein kitne din gap,
-            aur kis time pe message ja sakta hai. Ye <strong>guards</strong> hain:
-            agent inhe bypass nahi kar sakta, chahe woh kuch bhi decide kare.
+            Set the amount and payment terms. The rules below are hard limits the agent
+            cannot cross: how many messages at most, the minimum gap between them,
+            and the hours it may contact anyone. These are <strong>guards</strong> —
+            they run again at send time, so a decision cannot skip them.
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -162,25 +161,25 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
               <div className="overline" style={{ marginBottom: 12 }}>Invoice</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="field">
-                  <span className="label">Amount (₹)</span>
+                  <span className="label">Amount</span>
                   <input className="input num" type="number" value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))} />
                   <span className="hint">{inr(amount)}</span>
                 </div>
                 <div className="field">
-                  <span className="label">Payment terms (din)</span>
+                  <span className="label">Payment terms</span>
                   <input className="input num" type="number" value={termDays}
                     onChange={(e) => setTermDays(Number(e.target.value))} />
-                  <span className="hint">Due date issue se {termDays} din baad</span>
+                  <span className="hint">Due {termDays} days after issue</span>
                 </div>
                 <div className="field">
-                  <span className="label">Link validity (din)</span>
+                  <span className="label">Payment link validity</span>
                   <input className="input num" type="number" value={linkValidDays}
                     onChange={(e) => setLinkValidDays(Number(e.target.value))} />
                   <span className="hint">
                     {linkValidDays < termDays
-                      ? `Due date se pehle hi expire ho jayega — agent ko reissue karna padega. Yehi asli duniya mein sabse zyada hota hai.`
-                      : `Due date ke baad tak valid rahega.`}
+                      ? `Expires before the due date, so the agent must reissue it before it can chase. This is the most common real-world case.`
+                      : `Stays valid past the due date.`}
                   </span>
                 </div>
                 <div className="field">
@@ -192,42 +191,42 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
             </div>
 
             <div className="panel">
-              <div className="overline" style={{ marginBottom: 12 }}>Rules — agent inhe todh nahi sakta</div>
+              <div className="overline" style={{ marginBottom: 12 }}>Rules the agent cannot break</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="field">
-                  <span className="label">Max messages per invoice</span>
+                  <span className="label">Maximum messages</span>
                   <input className="input num" type="number" value={rules.maxTouches}
                     onChange={(e) => setRules({ ...rules, maxTouches: Number(e.target.value) })} />
-                  <span className="hint">Iske baad case insaan ke paas jayega</span>
+                  <span className="hint">After this the case goes to a person</span>
                 </div>
                 <div className="field">
-                  <span className="label">Minimum gap (din)</span>
+                  <span className="label">Minimum gap between messages</span>
                   <input className="input num" type="number" value={rules.minGapDays}
                     onChange={(e) => setRules({ ...rules, minGapDays: Number(e.target.value) })} />
-                  <span className="hint">Do message ke beech kam se kam itne din</span>
+                  <span className="hint">Days that must pass before the next message</span>
                 </div>
                 <div className="field">
-                  <span className="label">Chup buyer ke liye cap</span>
+                  <span className="label">Cap for silent buyers</span>
                   <input className="input num" type="number" value={rules.silentTouchCap}
                     onChange={(e) => setRules({ ...rules, silentTouchCap: Number(e.target.value) })} />
-                  <span className="hint">Jo bilkul reply nahi karta, utne message ke baad insaan</span>
+                  <span className="hint">A buyer who never replies goes to a person after this many</span>
                 </div>
                 <div className="field">
-                  <span className="label">Contact window (IST)</span>
+                  <span className="label">Contact hours (IST)</span>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input className="input num" value={rules.windowStart}
                       onChange={(e) => setRules({ ...rules, windowStart: e.target.value })} />
-                    <span style={{ color: "var(--text-4)" }}>se</span>
+                    <span style={{ color: "var(--text-4)" }}>to</span>
                     <input className="input num" value={rules.windowEnd}
                       onChange={(e) => setRules({ ...rules, windowEnd: e.target.value })} />
                   </div>
-                  <span className="hint">Sunday aur holiday pe waise bhi message nahi jayega</span>
+                  <span className="hint">Sundays and public holidays are excluded automatically</span>
                 </div>
                 <div className="field">
-                  <span className="label">Campaign length (din)</span>
+                  <span className="label">Campaign length</span>
                   <input className="input num" type="number" value={rules.campaignDays}
                     onChange={(e) => setRules({ ...rules, campaignDays: Number(e.target.value) })} />
-                  <span className="hint">Iske baad sirf insaan decide karega</span>
+                  <span className="hint">After this only a person may act</span>
                 </div>
               </div>
             </div>
@@ -235,19 +234,19 @@ export function NewInvoice({ contacts, policy }: { contacts: Contact[]; policy: 
 
           {error && (
             <div className="explain" style={{ background: "rgba(217,119,87,0.12)", borderColor: "rgba(217,119,87,0.3)" }}>
-              <strong>Nahi ban paya:</strong> {error}
+              <strong>Could not create it:</strong> {error}
             </div>
           )}
 
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-primary" onClick={submit} disabled={busy}>
-              {busy ? <><span className="spinner" /> Razorpay pe bana raha hai…</> : `Invoice banao — ${inr(amount)}`}
+              {busy ? <><span className="spinner" /> Creating it on Razorpay…</> : `Create invoice for ${inr(amount)}`}
             </button>
-            <button className="btn btn-ghost" onClick={() => setStep(1)} disabled={busy}>Peeche</button>
+            <button className="btn btn-ghost" onClick={() => setStep(1)} disabled={busy}>Back</button>
           </div>
           <p className="explain-inline">
-            Ye asli Razorpay test-mode call hai: customer banega, payment link banega,
-            aur wahi link WhatsApp template ke button mein jayega.
+            This makes a real Razorpay test-mode call: it creates the customer, the payment
+            link, and puts that link in the WhatsApp message button.
           </p>
         </div>
       )}

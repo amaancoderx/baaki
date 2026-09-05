@@ -10,6 +10,12 @@ export interface JsonRequest {
   schema: Record<string, unknown>;
   temperature?: number;
   maxOutputTokens?: number;
+  /**
+   * Tokens the model may spend thinking before it answers. Thinking is drawn
+   * from the same budget as the answer, so a task that needs no reasoning and
+   * a tight output cap must set this to 0 or the reply comes back truncated.
+   */
+  thinkingBudget?: number;
   /** Stable key for the response cache. Same key, same answer, no second call. */
   cacheKey?: string;
 }
@@ -46,6 +52,12 @@ export interface ToolRequest {
   history?: { call: ToolCall; result: unknown }[];
   temperature?: number;
   maxOutputTokens?: number;
+  /**
+   * Tokens the model may spend thinking before it answers. Thinking is drawn
+   * from the same budget as the answer, so a task that needs no reasoning and
+   * a tight output cap must set this to 0 or the reply comes back truncated.
+   */
+  thinkingBudget?: number;
   cacheKey?: string;
 }
 

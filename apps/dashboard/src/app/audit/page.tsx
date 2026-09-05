@@ -5,17 +5,17 @@ import { formatINR, formatINRCompact, formatTs } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const ACTOR_HI: Record<string, string> = {
-  fast: "rule", agent: "Gemini agent", human: "insaan", webhook: "Razorpay / WhatsApp",
+const ACTOR: Record<string, string> = {
+  fast: "Rule", agent: "Gemini agent", human: "Person", webhook: "Razorpay / WhatsApp",
 };
-const ACTION_HI: Record<string, string> = {
-  send_nudge: "message bheja",
-  reissue_payment_path: "naya payment link banaya",
-  schedule_wait: "wait kiya",
-  open_dispute: "dispute khola",
-  escalate_to_human: "insaan ko diya",
-  stop: "band kiya",
-  none: "note",
+const ACTION: Record<string, string> = {
+  send_nudge: "sent a message",
+  reissue_payment_path: "issued a new payment link",
+  schedule_wait: "waited",
+  open_dispute: "opened a dispute",
+  escalate_to_human: "handed to a person",
+  stop: "closed the case",
+  none: "noted",
 };
 const ACTOR_CLS: Record<string, string> = {
   fast: "chip-neutral", agent: "chip-accent", human: "chip-ink", webhook: "chip-warning",
@@ -30,8 +30,8 @@ export default async function AuditPage() {
       <div className="container">
         <h1 className="h1">Audit trail</h1>
         <div className="explain" style={{ marginTop: 16 }}>
-          <span className="tag">Service band hai</span>
-          Ledger padha nahi ja saka.
+          <span className="tag">Cannot reach the ledger</span>
+          The ledger could not be read.
         </div>
       </div>
     );
@@ -64,7 +64,7 @@ export default async function AuditPage() {
         <div>
           <h1 className="h1">Audit trail</h1>
           <p style={{ color: "var(--text-3)", fontSize: 13, marginTop: 4 }}>
-            Har action, uska reason, aur woh kis event se juda hai.
+            Every action, why it was taken, and the event that evidences it.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -75,19 +75,19 @@ export default async function AuditPage() {
 
       <section className="stats" style={{ marginBottom: 20 }}>
         <div className="stat">
-          <span className="overline">Recover hua</span>
+          <span className="overline">Recovered</span>
           <span className="stat-value" style={{ color: "var(--accent-deep)" }}>{formatINRCompact(collected)}</span>
           <span className="stat-sub">{billed ? ((collected / billed) * 100).toFixed(1) : 0}% of {formatINRCompact(billed)}</span>
         </div>
         <div className="stat">
-          <span className="overline">Abhi baaki</span>
+          <span className="overline">Outstanding</span>
           <span className="stat-value">{formatINRCompact(outstanding)}</span>
-          <span className="stat-sub">{state.invoices.filter((i) => !["paid","closed"].includes(i.invoice.substate)).length} khule</span>
+          <span className="stat-sub">{state.invoices.filter((i) => !["paid","closed"].includes(i.invoice.substate)).length} open</span>
         </div>
         <div className="stat">
           <span className="overline">Payments</span>
           <span className="stat-value">{payments.length}</span>
-          <span className="stat-sub">har ek webhook se</span>
+          <span className="stat-sub">each from a webhook</span>
         </div>
         <div className="stat">
           <span className="overline">Actions logged</span>
@@ -98,23 +98,23 @@ export default async function AuditPage() {
           <span className="overline">Guard checks</span>
           <span className="stat-value">{totalGuards}</span>
           <span className="stat-sub" style={failedGuards ? { color: "#b04a28" } : {}}>
-            {failedGuards} refuse hue
+            {failedGuards} refused
           </span>
         </div>
       </section>
 
       <div className="explain" style={{ marginBottom: 20 }}>
-        <span className="tag">Ye kyun matter karta hai</span>
-        Har rupee jo yahan dikh raha hai woh Razorpay ke webhook se aaya hai —
-        koi manual entry nahi. Aur har action ke saath uska reason aur guards ka
-        result likha hai. Panel ye poocha to: <strong>ye maine nahi likha, system
-        ne likha</strong>.
+        <span className="tag">Why this page exists</span>
+        Every rupee here arrived through a Razorpay webhook, not a manual entry, and
+        carries the event id that evidences it. Every action carries the reason it
+        was taken and the guard verdicts it passed. <strong>None of this page is
+        written by hand</strong> — it is the append-only log, rendered.
       </div>
 
       {payments.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <h2 className="h2" style={{ marginBottom: 12 }}>
-            Paisa aaya <span style={{ color: "var(--text-4)" }}>· {payments.length}</span>
+            Payments received <span style={{ color: "var(--text-4)" }}>· {payments.length}</span>
           </h2>
           <div className="card">
             {payments.map((p) => (
@@ -134,15 +134,15 @@ export default async function AuditPage() {
             ))}
           </div>
           <p className="explain-inline">
-            Har payment ka evidence ek Razorpay event id hai. Wahi id audit entry
-            mein bhi hai, to kisi bhi rupee ko wapas trace kiya ja sakta hai.
+            Each payment carries the Razorpay event id that evidenced it. The same id
+            appears in the audit entry, so any rupee can be traced back to its source.
           </p>
         </section>
       )}
 
       <section>
         <h2 className="h2" style={{ marginBottom: 12 }}>
-          Har action <span style={{ color: "var(--text-4)" }}>· {entries.length}</span>
+          Every action <span style={{ color: "var(--text-4)" }}>· {entries.length}</span>
         </h2>
         <div className="card">
           {entries.slice(0, 80).map((e) => {
@@ -151,9 +151,9 @@ export default async function AuditPage() {
               <div key={e.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--hairline)" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                   <span className={`chip ${ACTOR_CLS[e.actor] ?? "chip-neutral"}`}>
-                    {ACTOR_HI[e.actor] ?? e.actor}
+                    {ACTOR[e.actor] ?? e.actor}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{ACTION_HI[e.action] ?? e.action}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{ACTION[e.action] ?? e.action}</span>
                   <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.buyer}</span>
                   <Link href={`/live/${e.invoiceId}`} className="mono" style={{ color: "var(--text-4)" }}>
                     {e.invoiceId}
@@ -181,7 +181,7 @@ export default async function AuditPage() {
         </div>
         {entries.length > 80 && (
           <p className="explain-inline">
-            Pehle 80 dikha rahe hain. Poora trail CSV ya JSON mein download karo.
+            Showing the 80 most recent. Download the full trail as CSV or JSON.
           </p>
         )}
       </section>

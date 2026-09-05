@@ -7,23 +7,23 @@ import { CallPanel } from "@/components/CallPanel";
 
 export const dynamic = "force-dynamic";
 
-const SUBSTATE_HI: Record<string, { hi: string; cls: string; note: string }> = {
-  awaiting_reply: { hi: "jawab ka intezaar", cls: "chip-neutral", note: "Message gaya hai, buyer ka reply nahi aaya." },
-  promised: { hi: "promise mila hai", cls: "chip-warning", note: "Buyer ne date di hai. Us din tak koi message nahi jayega." },
-  disputed: { hi: "dispute khula hai", cls: "chip-alert", note: "Buyer ne sawaal uthaya. Outreach band, merchant ko dekhna hai." },
-  human_hold: { hi: "insaan ke paas", cls: "chip-ink", note: "Agent ne haath khada kar diya. Ab automation kuch nahi karega." },
-  paid: { hi: "paisa aa gaya", cls: "chip-accent", note: "Razorpay ne confirm kiya. Campaign band." },
-  closed: { hi: "band", cls: "chip-neutral", note: "Case band ho chuka hai." },
+const SUBSTATE: Record<string, { label: string; cls: string; note: string }> = {
+  awaiting_reply: { label: "Awaiting reply", cls: "chip-neutral", note: "A message has gone out and the buyer has not answered yet." },
+  promised: { label: "Promised", cls: "chip-warning", note: "The buyer gave a date. Nothing will be sent until the day after it." },
+  disputed: { label: "Disputed", cls: "chip-alert", note: "The buyer raised a query. Outreach is frozen and this needs a person." },
+  human_hold: { label: "With a person", cls: "chip-ink", note: "The agent handed this over. Automation will not act on it again." },
+  paid: { label: "Paid", cls: "chip-accent", note: "Razorpay confirmed payment. The campaign has stopped." },
+  closed: { label: "Closed", cls: "chip-neutral", note: "This case is finished." },
 };
 
-const ACTOR_HI: Record<string, string> = {
-  fast: "rule", agent: "Gemini agent", human: "insaan", webhook: "Razorpay/WhatsApp",
+const ACTOR: Record<string, string> = {
+  fast: "Rule", agent: "Gemini agent", human: "Person", webhook: "Razorpay / WhatsApp",
 };
 
-const ACTION_HI: Record<string, string> = {
-  send_nudge: "message bheja", reissue_payment_path: "naya payment link banaya",
-  schedule_wait: "wait kiya", open_dispute: "dispute khola",
-  escalate_to_human: "insaan ko diya", stop: "band kiya", none: "note",
+const ACTION: Record<string, string> = {
+  send_nudge: "sent a message", reissue_payment_path: "issued a new payment link",
+  schedule_wait: "waited", open_dispute: "opened a dispute",
+  escalate_to_human: "handed to a person", stop: "closed the case", none: "noted",
 };
 
 function Timeline({ i }: { i: LiveInvoice }) {
@@ -31,29 +31,29 @@ function Timeline({ i }: { i: LiveInvoice }) {
   const events: Ev[] = [
     ...i.touches.map((t) => ({
       ts: t.ts, kind: "touch",
-      title: `Message bheja — ${t.persona === "owner" ? "owner ke naam se" : "accounts se"} (${t.rung.replace(/_/g, " ")})`,
+      title: `Message sent ${t.persona === "owner" ? "from the owner" : "from accounts"} · ${t.rung.replace(/_/g, " ")}`,
       body: t.body,
-      meta: t.carriedLiveLink ? "link live tha" : "link dead tha",
+      meta: t.carriedLiveLink ? "payment link was live" : "payment link had expired",
       evidence: [t.id],
     })),
     ...i.replies.map((r) => ({
       ts: r.ts, kind: "reply",
-      title: `Buyer ka reply — ${r.source === "button" ? "button dabaya" : "khud likha"}`,
+      title: `Buyer replied · ${r.source === "button" ? "tapped a button" : "wrote a message"}`,
       body: r.text,
-      meta: `Gemini ne padha: ${r.intent}${r.promiseDate ? ` (${r.promiseDate})` : ""} · confidence ${r.confidence.toFixed(2)}`,
+      meta: `Read as ${r.intent.replace(/_/g, " ")}${r.promiseDate ? `, ${r.promiseDate}` : ""} · confidence ${r.confidence.toFixed(2)}`,
       evidence: [r.id],
     })),
     ...i.payments.map((p) => ({
       ts: p.ts, kind: "payment",
-      title: `Payment aaya — ${formatINR(p.amount)}`,
-      meta: "Razorpay webhook se confirm hua",
+      title: `Payment received · ${formatINR(p.amount)}`,
+      meta: "confirmed by a Razorpay webhook",
       evidence: [p.evidence],
     })),
     ...i.audit.filter((a) => a.action !== "send_nudge").map((a) => ({
       ts: a.ts, kind: "decision",
-      title: `${ACTOR_HI[a.actor] ?? a.actor}: ${ACTION_HI[a.action] ?? a.action}`,
+      title: `${ACTOR[a.actor] ?? a.actor}: ${ACTION[a.action] ?? a.action}`,
       body: a.rationale,
-      meta: a.guards.length ? `${a.guards.filter((g) => g.pass).length}/${a.guards.length} guards pass` : undefined,
+      meta: a.guards.length ? `${a.guards.filter((g) => g.pass).length} of ${a.guards.length} guards passed` : undefined,
       evidence: a.evidence,
     })),
   ].sort((a, b) => a.ts - b.ts);
@@ -92,19 +92,19 @@ export default async function LiveCasePage({ params }: { params: Promise<{ id: s
   if (!i) notFound();
 
   const inv = i.invoice;
-  const s = SUBSTATE_HI[inv.substate] ?? { hi: inv.substate, cls: "chip-neutral", note: "" };
+  const s = SUBSTATE[inv.substate] ?? { label: inv.substate, cls: "chip-neutral", note: "" };
   const today = new Date().toISOString().slice(0, 10);
   const linkDead = inv.linkExpiresOn !== null && inv.linkExpiresOn < today;
 
   return (
     <div className="container">
-      <Link href="/" style={{ fontSize: 12, color: "var(--text-3)" }}>← Today</Link>
+      <Link href="/" style={{ fontSize: 12, color: "var(--text-3)" }}>← All invoices</Link>
 
       <header style={{ display: "flex", alignItems: "flex-start", gap: 16, marginTop: 12, marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h1 className="h1">{i.buyer.name}</h1>
-            <span className={`chip ${s.cls}`}>{s.hi}</span>
+            <span className={`chip ${s.cls}`}>{s.label}</span>
           </div>
           <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 12, color: "var(--text-3)" }}>
             <span className="mono">{inv.id}</span>
@@ -121,15 +121,15 @@ export default async function LiveCasePage({ params }: { params: Promise<{ id: s
       </header>
 
       <div className="explain" style={{ marginBottom: 20 }}>
-        <span className="tag">Abhi kya haal hai</span>
+        <span className="tag">Where this case stands</span>
         {s.note}{" "}
-        {linkDead && <>Payment link <strong>expire ho chuka</strong> hai — agla message bhejne se pehle agent naya link banayega, warna message bekaar jayega.</>}
+        {linkDead && <>The payment link has <strong>expired</strong>. The agent will issue a new one before the next message, since a reminder without a working link achieves nothing.</>}
       </div>
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
         <section style={{ flex: 1, minWidth: 0 }}>
           <h2 className="h2" style={{ marginBottom: 14 }}>
-            Pura hisaab <span style={{ color: "var(--text-4)" }}>· {i.touches.length + i.replies.length + i.payments.length + i.audit.length} events</span>
+            History <span style={{ color: "var(--text-4)" }}>· {i.touches.length + i.replies.length + i.payments.length + i.audit.length} events</span>
           </h2>
           <Timeline i={i} />
         </section>
@@ -137,9 +137,9 @@ export default async function LiveCasePage({ params }: { params: Promise<{ id: s
         <aside style={{ width: 290, flexShrink: 0 }}>
           {inv.substate === "promised" && inv.promisedFor && (
             <div className="panel panel-tint" style={{ marginBottom: 12 }}>
-              <div className="overline" style={{ marginBottom: 6 }}>Promise</div>
+              <div className="overline" style={{ marginBottom: 6 }}>Promised date</div>
               <div className="num" style={{ fontSize: 22, fontFamily: "var(--font-serif)" }}>{formatDateShort(inv.promisedFor)}</div>
-              <p className="explain-inline">Us din tak koi message nahi. Agar paisa nahi aaya, agent agle din khud dekhega.</p>
+              <p className="explain-inline">Nothing will be sent until the day after. If payment has not arrived by then, the agent picks the case up again.</p>
             </div>
           )}
 
@@ -153,36 +153,36 @@ export default async function LiveCasePage({ params }: { params: Promise<{ id: s
                   {i.external.shortUrl}
                 </a>
                 <div className="stat-row" style={{ marginTop: 8 }}>
-                  <span className="k">Link status</span>
+                  <span className="k">Link</span>
                   <span className="v" style={linkDead ? { color: "#b04a28" } : {}}>
-                    {linkDead ? `expire ${formatDateShort(inv.linkExpiresOn!)}` : `valid till ${formatDateShort(inv.linkExpiresOn!)}`}
+                    {linkDead ? `expired ${formatDateShort(inv.linkExpiresOn!)}` : `valid to ${formatDateShort(inv.linkExpiresOn!)}`}
                   </span>
                 </div>
               </>
-            ) : <p className="explain-inline">Koi live link nahi.</p>}
+            ) : <p className="explain-inline">No payment link.</p>}
             {i.external.razorpayCustomerId && (
               <div className="stat-row"><span className="k">Customer</span><span className="v mono" style={{ fontSize: 11 }}>{i.external.razorpayCustomerId}</span></div>
             )}
           </div>
 
           <div className="panel" style={{ marginTop: 12 }}>
-            <div className="overline" style={{ marginBottom: 4 }}>Buyer ka record</div>
-            <div className="stat-row"><span className="k">Average kitna late</span><span className="v">{i.memory.avgDaysLate.toFixed(1)} din</span></div>
+            <div className="overline" style={{ marginBottom: 4 }}>Buyer history</div>
+            <div className="stat-row"><span className="k">Average days late</span><span className="v">{i.memory.avgDaysLate.toFixed(1)}</span></div>
             <div className="stat-row">
-              <span className="k">Promise nibhaya</span>
-              <span className="v">{i.memory.counts.promisesMade === 0 ? "abhi koi nahi" : `${i.memory.counts.promisesKept}/${i.memory.counts.promisesMade}`}</span>
+              <span className="k">Promises kept</span>
+              <span className="v">{i.memory.counts.promisesMade === 0 ? "none made yet" : `${i.memory.counts.promisesKept}/${i.memory.counts.promisesMade}`}</span>
             </div>
-            <div className="stat-row"><span className="k">Reply per message</span><span className="v">{i.memory.repliesPerTouch.whatsapp.toFixed(2)}</span></div>
-            <div className="stat-row"><span className="k">Dispute kiye</span><span className="v">{i.memory.counts.disputesRaised}</span></div>
-            <div className="stat-row"><span className="k">Do-not-contact</span><span className="v" style={i.memory.doNotContact ? { color: "#b04a28" } : {}}>{i.memory.doNotContact ? "haan — permanent" : "nahi"}</span></div>
+            <div className="stat-row"><span className="k">Replies per message</span><span className="v">{i.memory.repliesPerTouch.whatsapp.toFixed(2)}</span></div>
+            <div className="stat-row"><span className="k">Disputes raised</span><span className="v">{i.memory.counts.disputesRaised}</span></div>
+            <div className="stat-row"><span className="k">Do not contact</span><span className="v" style={i.memory.doNotContact ? { color: "#b04a28" } : {}}>{i.memory.doNotContact ? "yes, permanent" : "no"}</span></div>
           </div>
 
           <div className="panel" style={{ marginTop: 12 }}>
             <div className="overline" style={{ marginBottom: 4 }}>Campaign</div>
-            <div className="stat-row"><span className="k">Issue hua</span><span className="v num">{formatDateShort(inv.issuedOn)}</span></div>
+            <div className="stat-row"><span className="k">Issued</span><span className="v num">{formatDateShort(inv.issuedOn)}</span></div>
             <div className="stat-row"><span className="k">Due</span><span className="v num">{formatDateShort(inv.dueOn)}</span></div>
-            <div className="stat-row"><span className="k">Messages bheje</span><span className="v">{i.touches.length}</span></div>
-            <div className="stat-row"><span className="k">Campaign khatam</span><span className="v num">{formatDateShort(inv.campaignEndsOn)}</span></div>
+            <div className="stat-row"><span className="k">Messages sent</span><span className="v">{i.touches.length}</span></div>
+            <div className="stat-row"><span className="k">Campaign ends</span><span className="v num">{formatDateShort(inv.campaignEndsOn)}</span></div>
           </div>
         </aside>
       </div>
