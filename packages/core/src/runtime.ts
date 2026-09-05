@@ -669,6 +669,25 @@ export class Baaki {
         }
         const fresh = ledger.caseFile(invoiceId, now);
         const sent = await this.send(fresh.invoice, fresh.buyer.phone, fresh.buyer.name, a, ledger);
+
+        // Every follow-up rides all three channels: our WhatsApp, and
+        // Razorpay's own email and SMS for the same invoice. One decision, one
+        // touch against the budget, three envelopes. Razorpay is the sender of
+        // record for the email and SMS, which is exactly what makes them worth
+        // sending: its reminder carries the payment page and its name.
+        let smsed = false;
+        const extRefs = ledger.external(invoiceId);
+        if (this.cfg.razorpay && extRefs?.razorpayInvoiceId && fresh.invoice.substate !== "paid") {
+          try {
+            await this.cfg.razorpay.notifyInvoice(extRefs.razorpayInvoiceId, "email");
+            emailed = true;
+          } catch { /* recorded below as what actually went */ }
+          try {
+            await this.cfg.razorpay.notifyInvoice(extRefs.razorpayInvoiceId, "sms");
+            smsed = true;
+          } catch { /* same */ }
+        }
+
         ledger.recordTouch(
           {
             invoiceId, buyerId: fresh.buyer.id, ts: now,
@@ -676,6 +695,7 @@ export class Baaki {
             carriedLiveLink: ledger.linkIsLive(fresh.invoice, today),
             body: a.draft,
             ...(emailed ? { emailed: true } : {}),
+            ...(smsed ? { smsed: true } : {}),
           },
           runGuards(fresh, a, now).results,
           decision.rationale,

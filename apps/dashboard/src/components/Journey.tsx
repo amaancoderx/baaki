@@ -78,7 +78,7 @@ export function buildTimeline(i: Inv): { events: Ev[]; nextOn: string | null } {
   for (const t of i.touches) {
     evs.push({
       ts: t.ts, day: dayOf(t.ts, issued), kind: "send",
-      title: `Follow-up sent · WhatsApp${(t as { emailed?: boolean }).emailed ? " + Email" : ""} · ${t.rung.replace(/_/g, " ")}`,
+      title: `Follow-up sent · WhatsApp${(t as { emailed?: boolean }).emailed ? " + Email" : ""}${(t as { smsed?: boolean }).smsed ? " + SMS" : ""} · ${t.rung.replace(/_/g, " ")}`,
       body: t.body,
     });
   }

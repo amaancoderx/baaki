@@ -150,6 +150,10 @@ export function razorpay(cfg: RazorpayConfig) {
     },
 
     getInvoice: (id: string) => call<RzpInvoice>("GET", `/invoices/${id}`),
+
+    /** Razorpay re-sends its own notification for an existing invoice. */
+    notifyInvoice: (id: string, medium: "email" | "sms") =>
+      call<{ success: boolean }>("POST", `/invoices/${id}/notify_by/${medium}`),
     listInvoices: (count = 50) => call<{ items: RzpInvoice[] }>("GET", `/invoices?count=${count}`),
     cancelInvoice: (id: string) => call<RzpInvoice>("POST", `/invoices/${id}/cancel`),
 

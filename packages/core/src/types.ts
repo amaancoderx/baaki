@@ -52,8 +52,10 @@ export interface Touch {
   rung: Rung;
   /** False when the payment link was expired at send time: a nudge with no live path. */
   carriedLiveLink: boolean;
-  /** Set when the same touch also went out by email, which the final notice does. */
+  /** Set when the same touch also went out by email. */
   emailed?: boolean;
+  /** Set when Razorpay also sent its SMS for this touch. */
+  smsed?: boolean;
   body: string;
 }
 
