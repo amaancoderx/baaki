@@ -35,12 +35,16 @@ async function answer(req: Request): Promise<Response> {
     // Real-time by default: Gemini hears the caller directly and answers in
     // its own voice. VOICE_MODE=gather falls back to Twilio's TTS and
     // recogniser, which work anywhere but sound synthetic and mangle Hindi.
-    if ((process.env.VOICE_MODE ?? "live") === "live") {
-      const wss = url.origin.replace(/^https/, "wss");
+    // Real-time runs on a host that can hold a duplex socket. A Vercel
+    // Function opens the outbound connection to Gemini and never receives a
+    // frame on it, so the bridge lives on Fly next to Twilio's media servers.
+    const bridge = process.env.VOICE_BRIDGE;
+    if (bridge && (process.env.VOICE_MODE ?? "live") === "live") {
+      const wss = bridge.replace(/^https/, "wss");
       return xml(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${wss}/api/ws">
+    <Stream url="${wss}/media">
       <Parameter name="invoice" value="${invoiceId}" />
     </Stream>
   </Connect>

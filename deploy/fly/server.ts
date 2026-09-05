@@ -94,10 +94,17 @@ wss.on("connection", (ws: WebSocket) => {
 
   const pacer = new AudioPacer((payload) => {
     if (ws.readyState === ws.OPEN && streamSid) {
+      framesOut += 1;
+      if (framesOut % 250 === 0) log(`  outbound ${framesOut} frames, ${pacer.queuedMs}ms queued`);
       ws.send(JSON.stringify({ event: "media", streamSid, media: { payload } }));
+    } else if (!streamSid) {
+      log("  DROPPED outbound frame: no streamSid");
     }
   });
-  const batcher = new InboundBatcher((pcm) => sendAudio(pcm), 60);
+  let framesIn = 0, bytesToGemini = 0, framesOut = 0, geminiChunks = 0;
+  /** Set when a tool concluded the call: hang up once she finishes speaking. */
+  let endAfterTurn = false;
+  const batcher = new InboundBatcher((pcm) => { bytesToGemini += pcm.length; sendAudio(pcm); }, 60);
 
   function sendAudio(pcm16: Buffer): void {
     if (closed) return;
@@ -190,6 +197,12 @@ wss.on("connection", (ws: WebSocket) => {
         }
         if (sc.outputTranscription?.text) process.stdout.write(sc.outputTranscription.text);
         if (sc.inputTranscription?.text) log(`  buyer: ${sc.inputTranscription.text}`);
+        if (sc.turnComplete) log("  model turn complete");
+        if (sc.generationComplete) log("  generation complete");
+        if (endAfterTurn && (sc.turnComplete || sc.generationComplete)) {
+          log("  business concluded and she has finished speaking");
+          shutdown("goodbye said");
+        }
       }
 
       if (msg.toolCall?.functionCalls) {
@@ -217,9 +230,14 @@ wss.on("connection", (ws: WebSocket) => {
         callSid = msg.start?.callSid ?? callSid;
         void begin(String(msg.start?.customParameters?.invoice ?? ""));
         break;
-      case "media":
-        batcher.push(twilioToGemini(msg.media.payload));
+      case "media": {
+        framesIn += 1;
+        const pcm = twilioToGemini(msg.media.payload);
+        if (framesIn === 1) log(`  first inbound frame: ${msg.media.payload.length}b mulaw -> ${pcm.length}b pcm16`);
+        if (framesIn % 250 === 0) log(`  inbound ${framesIn} frames, ${bytesToGemini}b to gemini, ready=${ready}`);
+        batcher.push(pcm);
         break;
+      }
       case "stop":
         shutdown("twilio hung up");
         break;
