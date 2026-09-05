@@ -485,11 +485,12 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
           });
           paidOn.set(inv.id, today);
           events.push({ day, date: today, kind: "payment", invoiceId: inv.id, detail: { amount: outstanding, viaHuman: true } });
-        } else {
-          ledger.setSubstate(inv.id, "closed",
-            `A person worked this case and could not recover it. Closing rather than leaving it open forever.`,
-            "human", [inv.id], { closedOn: today, closedReason: "human could not recover" });
         }
+        // A person who could not recover the case does not close it. The
+        // invoice stays open and the buyer may still pay unprompted — closing
+        // it removed them from the payment draw entirely, which punished
+        // whichever policy escalated more and reintroduced the exact bias the
+        // human queue exists to remove.
       }
     }
 

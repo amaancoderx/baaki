@@ -163,21 +163,31 @@ lines.push("## It depends entirely on whether anyone works the queue", "");
 lines.push("The agent escalates more often than the rules do. Whether that is caution",
   "or abandonment depends on something outside the agent: what the merchant does",
   "with the cases handed to them.", "");
-lines.push("| Cases a person recovers | Rules | Agent | Δ pp | Agent touches/₹1L |");
-lines.push("| --- | --- | --- | --- | --- |");
+lines.push("| Cases a person recovers | Rules collected | Agent collected | Δ pp | Rules t/₹1L | Agent t/₹1L | Messages saved |");
+lines.push("| --- | --- | --- | --- | --- | --- | --- |");
 let breakEven: number | null = null;
+let savings: number[] = [];
 for (const rp of RESOLVE) {
   const r = mean(pick("rules", rp, (x) => x.collected));
   const a = mean(pick("agent", rp, (x) => x.collected));
-  const t = mean(pick("agent", rp, (x) => x.touchesPerLakh));
+  const tr = mean(pick("rules", rp, (x) => x.touchesPerLakh));
+  const ta = mean(pick("agent", rp, (x) => x.touchesPerLakh));
   const d = a - r;
+  const saved = ((tr - ta) / tr) * 100;
+  savings.push(saved);
   if (breakEven === null && d >= 0) breakEven = rp;
-  lines.push(`| ${(rp * 100).toFixed(0)}% | ${r.toFixed(2)}% | ${a.toFixed(2)}% | ${d >= 0 ? "+" : ""}${d.toFixed(2)} | ${t.toFixed(2)} |`);
+  lines.push(`| ${(rp * 100).toFixed(0)}% | ${r.toFixed(2)}% | ${a.toFixed(2)}% | ${d >= 0 ? "+" : ""}${d.toFixed(2)} | ${tr.toFixed(2)} | ${ta.toFixed(2)} | ${saved.toFixed(0)}% |`);
 }
 lines.push("");
+const meanSaved = mean(savings);
 lines.push(breakEven === null
-  ? "**The agent does not overtake the rules at any resolution rate tested.** On this simulator its extra caution costs money however diligent the merchant is."
-  : `**The agent overtakes the rules once a person recovers about ${(breakEven * 100).toFixed(0)}% of escalated cases.** Below that, escalating is closer to abandoning and the rules' persistence wins.`, "");
+  ? `**The agent collects less money and sends fewer messages.** It does not overtake the rules on collection at any resolution rate tested, losing between ${Math.abs(Math.max(...RESOLVE.map((rp) => mean(pick("agent", rp, (x) => x.collected)) - mean(pick("rules", rp, (x) => x.collected))))).toFixed(1)} and ${Math.abs(Math.min(...RESOLVE.map((rp) => mean(pick("agent", rp, (x) => x.collected)) - mean(pick("rules", rp, (x) => x.collected))))).toFixed(1)} points. It also spends about ${meanSaved.toFixed(0)}% fewer messages to get there.`
+  : `**The agent overtakes the rules once a person recovers about ${(breakEven * 100).toFixed(0)}% of escalated cases.**`, "");
+lines.push("Which of those two numbers matters is a business question, not a",
+  "modelling one. A merchant paying per WhatsApp conversation and worried about",
+  "goodwill reads this differently from one who only counts recovered rupees.",
+  "The simulator cannot price goodwill, so it does not pretend to: both columns",
+  "are reported and neither is combined into a score.", "");
 lines.push("Three seeds is a wide interval. Per-seed numbers, at 50% resolution:", "");
 lines.push("| Seed | Rules | Agent | Δ pp | Violations |", "| --- | --- | --- | --- | --- |");
 for (const seed of SEEDS) {
@@ -199,10 +209,14 @@ lines.push("The agent should show up where a case needs reading — `disputer`,"
   "`promise_breaker`, `partial_payer` — and be near zero on `prompt_payer`, who",
   "pays anyway, and `ghost`, who never says anything to read.", "");
 lines.push("## What this measures, and what it cannot", "");
-lines.push("The agent consistently spends fewer messages than the rules for a given",
-  "amount of money — restraint is real and it shows up in every run. Whether that",
-  "restraint is worth its cost depends on a number this simulator cannot know:",
-  "how often a person actually recovers a case once it reaches them.", "",
+lines.push("The agent is more restrained than the rules in every run: it escalates",
+  "sooner and sends fewer messages. On this simulator that restraint costs",
+  "money, consistently and across every resolution rate tested. That is the",
+  "result, and it is not the one the product would prefer.", "",
+  "One caution about reading it as a verdict on the model. The rules were tuned",
+  "against these personas — the rung gaps, the silent-buyer cap and the touch",
+  "budget in policy p3 all came from ablations on this simulator. The agent was",
+  "not. A like-for-like comparison would tune both or neither.", "",
   "The simulator's human is deliberately crude — one draw, one fixed delay, no",
   "negotiation, no part payment, no relationship. A real collections call can do",
   "things the model cannot represent. Treat the break-even as an order of",
