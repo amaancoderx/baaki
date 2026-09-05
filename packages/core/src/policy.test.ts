@@ -92,7 +92,7 @@ describe("voiceCall fires as a rule, before any routing", () => {
       channel: "whatsapp", persona: "accounts", rung: "whatsapp", carriedLiveLink: true, body: "…",
     }],
     replies: [], payments: [], daysOverdue: 18, nextRung: "whatsapp+reissue",
-    callsPlaced: 0, lastDecisionTs: null, nextReviewOn: null, policy: LIVE_POLICY,
+    callsPlaced: 0, lastCallAt: null, lastDecisionTs: null, nextReviewOn: null, policy: LIVE_POLICY,
   };
 
   it("calls a buyer who has gone silent past the threshold", () => {
@@ -139,5 +139,58 @@ describe("voiceCall fires as a rule, before any routing", () => {
 
   it("does not call after the campaign has ended", () => {
     expect(voiceCall({ ...base, invoice: { ...base.invoice, campaignEndsOn: "2026-10-01" } })).toBeNull();
+  });
+});
+
+describe("a second call has to be earned", () => {
+  const called: CaseFile = {
+    today: "2026-10-10", nowMs: istAt("2026-10-10", 11),
+    invoice: {
+      id: "inv_1", buyerId: "b_1", amount: 32_000_000, amountPaid: 0,
+      issuedOn: "2026-09-05", dueOn: "2026-09-20", linkExpiresOn: "2026-11-01",
+      state: "overdue", substate: "awaiting_reply", promisedFor: null, disputeReason: null,
+      campaignEndsOn: "2026-12-19", arm: "baaki", closedOn: null, closedReason: null,
+    },
+    buyer: { id: "b_1", name: "Sharma Traders", phone: "919000000001" },
+    memory: emptyMemory("b_1"),
+    touches: [{
+      id: "t_1", invoiceId: "inv_1", buyerId: "b_1", ts: istAt("2026-09-28", 11),
+      channel: "whatsapp", persona: "accounts", rung: "whatsapp", carriedLiveLink: true, body: "…",
+    }],
+    replies: [], payments: [], daysOverdue: 20, nextRung: "whatsapp+reissue",
+    callsPlaced: 1, lastCallAt: istAt("2026-10-08", 11),
+    lastDecisionTs: null, nextReviewOn: null,
+    policy: { ...LIVE_POLICY, voice: { ...LIVE_POLICY.voice!, maxCalls: 2 } },
+  };
+
+  it("does not call again the day after, with nothing tried in between", () => {
+    // This shipped: two calls landed on consecutive days because the lifetime
+    // cap was the only thing standing between them.
+    expect(voiceCall(called)).toBeNull();
+  });
+
+  it("calls again once another message has gone out and been ignored", () => {
+    const nudgedSince = {
+      ...called,
+      touches: [...called.touches, {
+        id: "t_2", invoiceId: "inv_1", buyerId: "b_1", ts: istAt("2026-10-09", 11),
+        channel: "whatsapp" as const, persona: "accounts" as const,
+        rung: "whatsapp+reissue" as const, carriedLiveLink: true, body: "…",
+      }],
+    };
+    expect(voiceCall(nudgedSince)?.action.kind).toBe("place_call");
+  });
+
+  it("still refuses once the lifetime cap is spent, message or not", () => {
+    const spent = {
+      ...called,
+      callsPlaced: 2,
+      touches: [...called.touches, {
+        id: "t_2", invoiceId: "inv_1", buyerId: "b_1", ts: istAt("2026-10-09", 11),
+        channel: "whatsapp" as const, persona: "accounts" as const,
+        rung: "whatsapp+reissue" as const, carriedLiveLink: true, body: "…",
+      }],
+    };
+    expect(voiceCall(spent)).toBeNull();
   });
 });

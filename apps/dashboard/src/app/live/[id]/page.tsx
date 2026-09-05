@@ -34,6 +34,9 @@ const ACTOR: Record<string, string> = {
  */
 function describe(a: { action: string; actor: string; params: Record<string, unknown> }): string {
   const p = a.params;
+  if (Array.isArray(p.refusedBy) && p.refusedBy.length) {
+    return `Blocked by ${(p.refusedBy as string[]).map((g) => g.replace(/_/g, " ")).join(", ")}`;
+  }
   switch (a.action) {
     case "deliver_invoice": {
       const ch = Array.isArray(p.channels) ? (p.channels as string[]) : [];

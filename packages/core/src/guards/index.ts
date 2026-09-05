@@ -48,6 +48,23 @@ export const doNotContact: Guard = (c, a) => {
   return pass(n);
 };
 
+/**
+ * Refuses to contact a buyer nobody is holding.
+ *
+ * Sample and seeded buyers carry invented numbers. Without this the ladder
+ * happily messages them and, once voice is on, dials them: a real Twilio call
+ * to a number that was never real. Absent means reachable, so existing buyers
+ * are unaffected and only data that says it is fake is treated as fake.
+ */
+export const reachableBuyer: Guard = (c, a) => {
+  const n = "reachable_buyer";
+  if (!reachesBuyer(a)) return pass(n);
+  if (c.buyer.reachable === false) {
+    return fail(n, `Buyer ${c.buyer.id} is marked unreachable: this number is sample data, not a line someone answers.`);
+  }
+  return pass(n);
+};
+
 export const contactWindow: Guard = (c, a, nowMs) => {
   const n = "contact_window";
   if (!isOutbound(a)) return pass(n);
@@ -188,6 +205,7 @@ export const draftFilter: Guard = (c, a) => {
 export const ALL_GUARDS: readonly Guard[] = [
   stopOnPaid,
   doNotContact,
+  reachableBuyer,
   campaignEnd,
   noContactWhileHeld,
   voiceWindow,

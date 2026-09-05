@@ -1,4 +1,4 @@
-import { baaki, json, policy, store } from "@/lib/server";
+import { baaki, clock, json, policy, store } from "@/lib/server";
 import { runVoiceTool } from "@baaki/core";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,13 @@ export async function POST(req: Request) {
   const p = await policy();
   const s = store();
   const ledger = await s.load(p);
+  // The ledger's clock, offset and all. A promise taken on a call is resolved
+  // and validated against the calendar the agent is living in.
+  const now = (await clock()).now();
 
   let c;
   try {
-    c = ledger.caseFile(body.invoiceId, Date.now());
+    c = ledger.caseFile(body.invoiceId, now);
   } catch {
     return json({ ok: false, detail: `unknown invoice ${body.invoiceId}` }, 404);
   }

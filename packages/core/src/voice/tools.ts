@@ -1,6 +1,7 @@
 import { addDays, type CivilDate } from "../time.js";
 import { formatINR } from "../money.js";
 import { razorpay } from "../razorpay/index.js";
+import { whatsapp } from "../channels/whatsapp.js";
 import type { LedgerStoreLike } from "../store.js";
 import { DEFAULT_POLICY, type Policy } from "../types.js";
 import type { Ledger } from "../ledger.js";
@@ -139,27 +140,79 @@ export async function runVoiceTool(
     }
 
     case "send_payment_link_now": {
-      if (!process.env.RAZORPAY_KEY_ID) return { ok: false, detail: "Payment links are not configured." };
+      // The buyer is on the phone saying they will pay right now. Two things
+      // have to be true a minute from now: the link in their WhatsApp is live,
+      // and it is actually in their WhatsApp. This tool used to guarantee
+      // neither: it minted a payment link (capped far below invoices, so a
+      // busy account threw 429 and the whole tool 500ed mid-call) and then
+      // told the model the URL without sending the buyer anything, so "link
+      // sent" was true only inside the conversation.
+      if (!process.env.RAZORPAY_KEY_ID) return { ok: false, detail: "Payments are not configured." };
       const rzp = razorpay({
         keyId: process.env.RAZORPAY_KEY_ID!, keySecret: process.env.RAZORPAY_KEY_SECRET!,
       });
-      const link = await rzp.createPaymentLink({
-        amount: ctx.outstanding,
-        description: `Invoice ${ctx.invoiceId} (sent during a call)`,
-        customer: { name: ctx.buyerName, contact: `+${ctx.buyerPhone}` },
-        expireBy: Math.floor(Date.parse(`${addDays(ctx.today, 14)}T18:00:00+05:30`) / 1000),
-      });
+
+      const l0 = await store.load(policy);
+      const existing = l0.external?.(ctx.invoiceId);
+      let shortUrl = ctx.shortUrl ?? existing?.shortUrl ?? "";
+      let freshId: string | null = null;
+
+      const linkLive = l0.linkIsLive?.(l0.invoice(ctx.invoiceId), ctx.today) ?? false;
+      if (!linkLive || !shortUrl) {
+        const customerId = existing?.razorpayCustomerId
+          ?? (await rzp.createCustomer({ name: ctx.buyerName, contact: `+${ctx.buyerPhone}` })).id;
+        const fresh = await rzp.createInvoice({
+          customerId,
+          amount: ctx.outstanding,
+          description: `Invoice ${ctx.invoiceId} (sent during a call)`,
+          receipt: `baaki_call_${ctx.invoiceId}_${now}`,
+          expireBy: Math.floor(Math.max(
+            Date.parse(`${addDays(ctx.today, 14)}T18:00:00+05:30`),
+            Date.now() + 30 * 60_000,
+          ) / 1000),
+        });
+        shortUrl = fresh.short_url;
+        freshId = fresh.id;
+      }
+
+      // The buyer just spoke to us on a call, but a call does not open a
+      // WhatsApp session window, so free-form only goes when an inbound
+      // message already opened one.
+      let delivered = false;
+      let deliveryNote = "WhatsApp is not configured, so the link was only read out.";
+      if (process.env.WA_PHONE_NUMBER_ID && process.env.WA_ACCESS_TOKEN) {
+        const wa = whatsapp({
+          phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
+          accessToken: process.env.WA_ACCESS_TOKEN,
+          appSecret: process.env.WA_APP_SECRET,
+          dryRun: process.env.WA_DRY_RUN === "1",
+        });
+        const lastReply = l0.repliesFor?.(ctx.invoiceId)?.at(-1);
+        const inSession = lastReply ? now - lastReply.ts <= 24 * 3600_000 : false;
+        try {
+          const res = inSession
+            ? await wa.sendText(ctx.buyerPhone, `Namaste ${ctx.buyerName}, jaisa abhi call par baat hui, ${formatINR(ctx.outstanding)} ka payment link:\n\n${shortUrl}`)
+            : await wa.sendTemplate({ to: ctx.buyerPhone, template: "hello_world", language: "en_US", bodyParams: [] });
+          delivered = true;
+          deliveryNote = `sent on WhatsApp (${res.messageId})`;
+        } catch (e) {
+          deliveryNote = `WhatsApp send failed: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+
       await store.update((l: Ledger) => {
-        l.noteExternal(ctx.invoiceId, { razorpayPaymentLinkId: link.id, shortUrl: link.short_url });
-        l.invoice(ctx.invoiceId).linkExpiresOn = addDays(ctx.today, 14);
+        if (freshId) {
+          l.noteExternal(ctx.invoiceId, { razorpayInvoiceId: freshId, shortUrl });
+          l.invoice(ctx.invoiceId).linkExpiresOn = addDays(ctx.today, 14);
+        }
         l.audit.append({
           ts: now, invoiceId: ctx.invoiceId, actor: "agent", action: "reissue_payment_path",
-          params: { paymentLinkId: link.id, shortUrl: link.short_url, via: "voice call" },
-          rationale: `Buyer asked for the link during a call. Fresh payment link issued for ${formatINR(ctx.outstanding)}.`,
-          guards: [], policyVersion: policy.policyVersion, evidence: [link.id, ...evidence],
+          params: { shortUrl, via: "voice call", delivered, ...(freshId ? { razorpayInvoiceId: freshId } : {}) },
+          rationale: `Buyer asked to pay during the call. ${freshId ? "Fresh link issued and " : "Live link "}${deliveryNote}.`,
+          guards: [], policyVersion: policy.policyVersion, evidence: [freshId ?? shortUrl, ...evidence].filter(Boolean),
         });
       }, policy);
-      return { ok: true, detail: `Link sent: ${link.short_url}` };
+      return { ok: true, detail: delivered ? `Link is in their WhatsApp: ${shortUrl}` : `Link ready (${shortUrl}) but ${deliveryNote}` };
     }
 
     case "set_do_not_call": {

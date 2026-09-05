@@ -1,28 +1,15 @@
-import { contacts, json, policy, store } from "@/lib/server";
+import { json, readState } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * One implementation, not two. This route used to rebuild the state shape by
+ * hand, and the copy drifted: it never carried demoOffsetMs and it aged every
+ * case against the wall clock. The voice bridge reads this endpoint to learn
+ * what day it is, so on a moved calendar the agent phoned people and then
+ * resolved "parso" against a date the ledger had already lived past.
+ */
 export async function GET() {
-  const p = await policy();
-  const ledger = await store().load(p);
-  const now = Date.now();
-
-  const invoices = ledger.invoices().map((inv) => {
-    const c = ledger.caseFile(inv.id, now);
-    return {
-      invoice: inv,
-      buyer: c.buyer,
-      memory: c.memory,
-      daysOverdue: c.daysOverdue,
-      outstanding: inv.amount - inv.amountPaid,
-      external: ledger.external(inv.id) ?? {},
-      touches: c.touches,
-      replies: c.replies,
-      payments: c.payments,
-      audit: ledger.audit.forInvoice(inv.id),
-    };
-  });
-
-  return json({ policy: p, invoices, contacts: await contacts() });
+  return json(await readState());
 }

@@ -215,13 +215,18 @@ export class Baaki {
       // dispatch settles a moment later. Reading it once more is the difference
       // between reporting what was queued and reporting what was sent.
       let emailStatus = inv.email_status ?? null;
-      if (emailStatus === "pending") {
+      // The dispatch settles a couple of seconds after the invoice is created,
+      // so one immediate read always comes back pending and the screen says
+      // "not confirmed" about an email that did in fact go.
+      for (let i = 0; emailStatus === "pending" && i < 4; i++) {
+        await new Promise((r) => setTimeout(r, 1_200));
         try {
           const settled = await this.cfg.razorpay.getInvoice(inv.id);
           emailStatus = settled.email_status ?? emailStatus;
         } catch {
           // Leave it as pending. Claiming more than we saw is the bug this
           // whole path exists to avoid.
+          break;
         }
       }
 
@@ -258,6 +263,7 @@ export class Baaki {
       const buyer: Buyer = {
         id: input.contact.id, name: input.contact.name, phone: input.contact.phone,
         ...(input.contact.email ? { email: input.contact.email } : {}),
+        ...(input.contact.sendable === false ? { reachable: false } : {}),
       };
       ledger.addBuyer(buyer, input.contact.language);
 
@@ -460,6 +466,22 @@ export class Baaki {
 
       if (!verdict.allowed) {
         entry.blocked = verdict.violation ?? "guard refused";
+        // A refusal is a decision, and it was going unrecorded. Two things
+        // followed. The audit trail did not show the guards doing the one job
+        // the whole layer exists for, and with no standing decision written the
+        // case proposed the identical action on the next tick, was refused
+        // again, and never settled.
+        ledger.audit.append({
+          ts: now, invoiceId: inv.id, actor: decision.actor, action: decision.action.kind,
+          params: {
+            refusedBy: verdict.results.filter((g) => !g.pass).map((g) => g.name),
+            nextReviewAt: decision.nextReviewAt ?? addDays(today, 1),
+          },
+          rationale: `${decision.rationale} The guards refused it: ${verdict.violation}`,
+          guards: verdict.results,
+          policyVersion: this.cfg.policy.policyVersion,
+          evidence: [inv.id],
+        });
         actions.push(entry);
         continue;
       }

@@ -3,7 +3,7 @@ import { istAt, addDays } from "../time.js";
 import { DEFAULT_POLICY, type Action, type CaseFile, type Invoice, type Reply, type Touch } from "../types.js";
 import { emptyMemory } from "../memory.js";
 import {
-  ALL_GUARDS, campaignEnd, contactWindow, doNotContact, draftFilter, maxTouches,
+  ALL_GUARDS, campaignEnd, contactWindow, doNotContact, draftFilter, maxTouches, reachableBuyer,
   minGap, noContactWhileHeld, runGuards, stopOnPaid, voiceBudget, voiceWindow,
   whatsappSessionWindow,
 } from "./index.js";
@@ -28,7 +28,7 @@ function caseFile(over: Partial<CaseFile> = {}): CaseFile {
     invoice: inv,
     buyer: { id: "b_1", name: "Sharma Traders", phone: "+919000000001" },
     memory: emptyMemory("b_1"),
-    touches: [], replies: [], payments: [], callsPlaced: 0,
+    touches: [], replies: [], payments: [], callsPlaced: 0, lastCallAt: null,
     daysOverdue: 47, nextRung: "whatsapp", lastDecisionTs: null, nextReviewOn: null, policy: DEFAULT_POLICY,
     ...over,
   };
@@ -309,5 +309,29 @@ describe("runGuards", () => {
     const v = runGuards(caseFile(), nudge(), istAt(TODAY, 11));
     expect(v.allowed).toBe(true);
     expect(v.violation).toBeNull();
+  });
+});
+
+describe("reachable_buyer", () => {
+  const fake = { id: "b_1", name: "Sample Traders", phone: "919000000102", reachable: false };
+
+  it("refuses to message a number that is sample data", () => {
+    const v = reachableBuyer(caseFile({ buyer: fake }), nudge(), istAt(TODAY, 11));
+    expect(v.pass).toBe(false);
+    expect(v.detail).toContain("sample data");
+  });
+
+  it("refuses to dial one, which is the expensive version of the same mistake", () => {
+    const call: Action = { kind: "place_call", reason: "silent buyer" };
+    expect(reachableBuyer(caseFile({ buyer: fake }), call, istAt(TODAY, 11)).pass).toBe(false);
+  });
+
+  it("treats an unmarked buyer as reachable, so real ones are unaffected", () => {
+    expect(reachableBuyer(caseFile(), nudge(), istAt(TODAY, 11)).pass).toBe(true);
+  });
+
+  it("still lets the case be closed or handed over", () => {
+    const esc: Action = { kind: "escalate_to_human", reason: "unreachable" };
+    expect(reachableBuyer(caseFile({ buyer: fake }), esc, istAt(TODAY, 11)).pass).toBe(true);
   });
 });

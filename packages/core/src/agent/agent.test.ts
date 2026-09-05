@@ -24,7 +24,7 @@ function caseFile(over: Partial<CaseFile> = {}): CaseFile {
     today: TODAY, nowMs: NOW, invoice: inv,
     buyer: { id: "b_1", name: "Sharma Traders", phone: "+919000000001" },
     memory: emptyMemory("b_1"), touches: [], replies: [], payments: [],
-    daysOverdue: 47, nextRung: "whatsapp", callsPlaced: 0, lastDecisionTs: null, nextReviewOn: null, policy: DEFAULT_POLICY, ...over,
+    daysOverdue: 47, nextRung: "whatsapp", callsPlaced: 0, lastCallAt: null, lastDecisionTs: null, nextReviewOn: null, policy: DEFAULT_POLICY, ...over,
   };
 }
 

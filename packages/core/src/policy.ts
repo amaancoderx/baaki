@@ -79,6 +79,11 @@ export function voiceCall(c: CaseFile): FastDecision | null {
   const voice = c.policy.voice;
   if (!voice?.enabled) return null;
   if (c.callsPlaced >= voice.maxCalls) return null;
+  // A second call has to be earned. Ringing again the day after the first one
+  // went unanswered says nothing the first did not and reads as harassment; the
+  // point of a call is that the cheap probe came back empty, so the cheap probe
+  // has to have been tried again in between.
+  if (c.lastCallAt !== null && !c.touches.some((t) => t.ts > c.lastCallAt!)) return null;
   if (c.touches.length === 0) return null;
   if (["paid", "closed", "disputed"].includes(inv.substate)) return null;
   if (c.memory.doNotContact) return null;

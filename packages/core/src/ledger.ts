@@ -227,6 +227,7 @@ export class Ledger {
       daysOverdue: this.daysOverdue(inv, today),
       nextRung: this.nextRung(inv, today),
       callsPlaced: this.callsPlaced(invoiceId),
+      lastCallAt: this.lastCallAt(invoiceId),
       lastDecisionTs: this.lastDecisionTs(invoiceId),
       nextReviewOn: this.nextReviewOn(invoiceId),
       policy: this.policy,
@@ -342,6 +343,15 @@ export class Ledger {
   /** Calls placed on this invoice, counted from the append-only log. */
   callsPlaced(invoiceId: string): number {
     return this.audit.forInvoice(invoiceId).filter((e) => e.action === "place_call").length;
+  }
+
+  /** When the last call was placed on this invoice, from the append-only log. */
+  lastCallAt(invoiceId: string): number | null {
+    let ts: number | null = null;
+    for (const e of this.audit.forInvoice(invoiceId)) {
+      if (e.action === "place_call" && (ts === null || e.ts > ts)) ts = e.ts;
+    }
+    return ts;
   }
 
   linkIsLive(inv: Invoice, today: CivilDate): boolean {

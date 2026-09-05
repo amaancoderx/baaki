@@ -92,6 +92,13 @@ export interface Buyer {
   phone: string;
   /** Where Razorpay sends the link. Absent for buyers who gave only a number. */
   email?: string;
+  /**
+   * False when nobody is holding this number: seeded buyers, sample data, a
+   * contact imported without verification. Outreach is refused rather than
+   * attempted, because a message to a number that does not exist is merely
+   * wasted and a phone call to one is wasted money.
+   */
+  reachable?: boolean;
   /** Set only by the sim. The agent never reads this. */
   hiddenPersonaKey?: string;
 }
@@ -136,6 +143,8 @@ export interface CaseFile {
    * them would change what every published number means.
    */
   callsPlaced: number;
+  /** When the last call went out, so a second one cannot follow it straight away. */
+  lastCallAt: number | null;
   /**
    * When a decider last acted on this invoice. A reply is "handled" once a
    * decision postdates it, even a decision that sends nothing. Otherwise a

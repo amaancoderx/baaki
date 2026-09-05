@@ -22,7 +22,7 @@ const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 
 async function contextFor(invoiceId: string): Promise<VoiceContext> {
   const res = await fetch(`${API}/api/state`, { headers: { "cache-control": "no-store" } });
   if (!res.ok) throw new Error(`ledger returned ${res.status}`);
-  const state = (await res.json()) as { invoices: any[] };
+  const state = (await res.json()) as { invoices: any[]; demoOffsetMs?: number };
   const row = state.invoices.find((i) => i.invoice.id === invoiceId);
   if (!row) throw new Error(`unknown invoice ${invoiceId}`);
   return {
@@ -32,7 +32,10 @@ async function contextFor(invoiceId: string): Promise<VoiceContext> {
     outstanding: row.outstanding,
     dueOn: row.invoice.dueOn,
     daysOverdue: row.daysOverdue,
-    today: new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10),
+    // The ledger's clock, not the wall clock. In a demo the calendar is moved
+    // forward, and "parso" resolved against the real date produced a promise
+    // for a day the ledger had already lived past: recorded, instantly stale.
+    today: new Date(Date.now() + (state.demoOffsetMs ?? 0) + 5.5 * 3600_000).toISOString().slice(0, 10),
     shortUrl: row.external?.shortUrl,
   };
 }
