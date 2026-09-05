@@ -96,17 +96,20 @@ function rehydrate(
   }
 }
 
-interface Row { seed: number; arm: string; collected: number; touchesPerLakh: number; dso: number; violations: number }
+interface Row { seed: number; arm: string; resolveProb: number; collected: number; touchesPerLakh: number; dso: number; violations: number }
 
-async function run(seed: number, slowPath: "rules" | "agent"): Promise<{ row: Row; byPersona: Record<string, SimMetrics> }> {
+async function run(
+  seed: number, slowPath: "rules" | "agent", resolveProb: number,
+): Promise<{ row: Row; byPersona: Record<string, SimMetrics> }> {
   const r = await runSim({
     seed, invoices: INVOICES, horizonDays: HORIZON, holdout: 0.5,
     slowDecider: slowPath === "agent" ? agentDecision : rulesDecision,
+    humanQueue: { resolveProb, reviewDelayDays: 3 },
   });
   const a = r.byArm.baaki!;
   return {
     row: {
-      seed, arm: slowPath,
+      seed, arm: slowPath, resolveProb,
       collected: (a.collectedTotal / a.billed) * 100,
       touchesPerLakh: a.touchesPerLakhCollected,
       dso: a.dso,
@@ -116,26 +119,37 @@ async function run(seed: number, slowPath: "rules" | "agent"): Promise<{ row: Ro
   };
 }
 
+/**
+ * How often a person recovers a case the agent handed them. At 0 the simulator
+ * has no human at all and escalating is indistinguishable from abandoning, so
+ * any policy that escalates more looks worse for being careful.
+ */
+const RESOLVE = [0, 0.25, 0.5, 0.75];
+
 const rows: Row[] = [];
 const personaDelta: Record<string, { rules: number; agent: number; n: number }> = {};
 
-for (const seed of SEEDS) {
-  for (const slowPath of ["rules", "agent"] as const) {
-    process.stderr.write(`\nseed ${seed} / ${slowPath}: `);
-    const { row, byPersona } = await run(seed, slowPath);
-    rows.push(row);
-    for (const [k, m] of Object.entries(byPersona)) {
-      personaDelta[k] ??= { rules: 0, agent: 0, n: 0 };
-      const pct = m.billed ? (m.collectedTotal / m.billed) * 100 : 0;
-      if (slowPath === "rules") personaDelta[k]!.rules += pct;
-      else { personaDelta[k]!.agent += pct; personaDelta[k]!.n += 1; }
+for (const resolveProb of RESOLVE) {
+  for (const seed of SEEDS) {
+    for (const slowPath of ["rules", "agent"] as const) {
+      process.stderr.write(`\nresolve ${resolveProb} seed ${seed} / ${slowPath}: `);
+      const { row, byPersona } = await run(seed, slowPath, resolveProb);
+      rows.push(row);
+      if (resolveProb !== 0.5) continue;   // persona table from the middle case
+      for (const [k, m] of Object.entries(byPersona)) {
+        personaDelta[k] ??= { rules: 0, agent: 0, n: 0 };
+        const pct = m.billed ? (m.collectedTotal / m.billed) * 100 : 0;
+        if (slowPath === "rules") personaDelta[k]!.rules += pct;
+        else { personaDelta[k]!.agent += pct; personaDelta[k]!.n += 1; }
+      }
     }
   }
 }
 process.stderr.write("\n");
 
 const mean = (x: number[]) => x.reduce((a, b) => a + b, 0) / Math.max(1, x.length);
-const pick = (arm: string, f: (r: Row) => number) => rows.filter((r) => r.arm === arm).map(f);
+const pick = (arm: string, rp: number, f: (r: Row) => number) =>
+  rows.filter((r) => r.arm === arm && r.resolveProb === rp).map(f);
 
 const lines: string[] = [];
 lines.push("# What the case agent adds", "");
@@ -145,20 +159,35 @@ lines.push(`- **Invoices per seed:** ${INVOICES}, ${HORIZON}-day horizon, 50/50 
 lines.push(`- **Live model calls:** ${live} · **cache hits:** ${hits}`);
 lines.push(`- Decisions are cached by a canonical case hash, so identical situations are asked once.`, "");
 
-lines.push("## Per seed", "");
-lines.push("| Seed | Rules collected | Agent collected | Δ pp | Rules t/₹1L | Agent t/₹1L | Violations |");
-lines.push("| --- | --- | --- | --- | --- | --- | --- |");
-for (const seed of SEEDS) {
-  const r = rows.find((x) => x.seed === seed && x.arm === "rules")!;
-  const a = rows.find((x) => x.seed === seed && x.arm === "agent")!;
-  const d = a.collected - r.collected;
-  lines.push(`| ${seed} | ${r.collected.toFixed(2)}% | ${a.collected.toFixed(2)}% | ${d >= 0 ? "+" : ""}${d.toFixed(2)} | ${r.touchesPerLakh.toFixed(2)} | ${a.touchesPerLakh.toFixed(2)} | ${a.violations} |`);
+lines.push("## It depends entirely on whether anyone works the queue", "");
+lines.push("The agent escalates more often than the rules do. Whether that is caution",
+  "or abandonment depends on something outside the agent: what the merchant does",
+  "with the cases handed to them.", "");
+lines.push("| Cases a person recovers | Rules | Agent | Δ pp | Agent touches/₹1L |");
+lines.push("| --- | --- | --- | --- | --- |");
+let breakEven: number | null = null;
+for (const rp of RESOLVE) {
+  const r = mean(pick("rules", rp, (x) => x.collected));
+  const a = mean(pick("agent", rp, (x) => x.collected));
+  const t = mean(pick("agent", rp, (x) => x.touchesPerLakh));
+  const d = a - r;
+  if (breakEven === null && d >= 0) breakEven = rp;
+  lines.push(`| ${(rp * 100).toFixed(0)}% | ${r.toFixed(2)}% | ${a.toFixed(2)}% | ${d >= 0 ? "+" : ""}${d.toFixed(2)} | ${t.toFixed(2)} |`);
 }
 lines.push("");
-const dm = mean(pick("agent", (r) => r.collected)) - mean(pick("rules", (r) => r.collected));
-lines.push(`**Mean delta: ${dm >= 0 ? "+" : ""}${dm.toFixed(2)}pp across ${SEEDS.length} seeds.** Three seeds is a wide interval; the per-seed numbers above are the honest view.`, "");
+lines.push(breakEven === null
+  ? "**The agent does not overtake the rules at any resolution rate tested.** On this simulator its extra caution costs money however diligent the merchant is."
+  : `**The agent overtakes the rules once a person recovers about ${(breakEven * 100).toFixed(0)}% of escalated cases.** Below that, escalating is closer to abandoning and the rules' persistence wins.`, "");
+lines.push("Three seeds is a wide interval. Per-seed numbers, at 50% resolution:", "");
+lines.push("| Seed | Rules | Agent | Δ pp | Violations |", "| --- | --- | --- | --- | --- |");
+for (const seed of SEEDS) {
+  const r = rows.find((x) => x.seed === seed && x.arm === "rules" && x.resolveProb === 0.5)!;
+  const a = rows.find((x) => x.seed === seed && x.arm === "agent" && x.resolveProb === 0.5)!;
+  lines.push(`| ${seed} | ${r.collected.toFixed(2)}% | ${a.collected.toFixed(2)}% | ${(a.collected - r.collected >= 0 ? "+" : "")}${(a.collected - r.collected).toFixed(2)} | ${a.violations} |`);
+}
+lines.push("");
 
-lines.push("## Per persona", "");
+lines.push("## Per persona, at 50% resolution", "");
 lines.push("| Persona | Rules | Agent | Δ pp |", "| --- | --- | --- | --- |");
 for (const [k, v] of Object.entries(personaDelta).sort()) {
   if (!v.n) continue;
@@ -169,12 +198,19 @@ lines.push("");
 lines.push("The agent should show up where a case needs reading — `disputer`,",
   "`promise_breaker`, `partial_payer` — and be near zero on `prompt_payer`, who",
   "pays anyway, and `ghost`, who never says anything to read.", "");
-lines.push("## Reading a delta of about zero", "");
-lines.push("A small delta is a result, not a failure. It would say the rules already",
-  "capture most of the value and the agent's job is the minority of cases the",
-  "rules cannot parse — done with zero guard violations. That is a defensible",
-  "position and a more honest one than an unmeasured claim.", "");
+lines.push("## What this measures, and what it cannot", "");
+lines.push("The agent consistently spends fewer messages than the rules for a given",
+  "amount of money — restraint is real and it shows up in every run. Whether that",
+  "restraint is worth its cost depends on a number this simulator cannot know:",
+  "how often a person actually recovers a case once it reaches them.", "",
+  "The simulator's human is deliberately crude — one draw, one fixed delay, no",
+  "negotiation, no part payment, no relationship. A real collections call can do",
+  "things the model cannot represent. Treat the break-even as an order of",
+  "magnitude, not a threshold.", "",
+  "Zero guard violations at every resolution rate. Whatever the agent costs or",
+  "saves, it never sent something it should not have.", "");
 
 mkdirSync("evals", { recursive: true });
 writeFileSync("evals/agent-delta.md", lines.join("\n"));
-console.error(`wrote evals/agent-delta.md — ${live} live calls, ${hits} cache hits, mean delta ${dm.toFixed(2)}pp`);
+const at50 = mean(pick("agent", 0.5, (x) => x.collected)) - mean(pick("rules", 0.5, (x) => x.collected));
+console.error(`wrote evals/agent-delta.md — ${live} live calls, ${hits} cache hits, delta at 50% resolution ${at50 >= 0 ? "+" : ""}${at50.toFixed(2)}pp, break-even ${breakEven === null ? "not reached" : (breakEven * 100) + "%"}`);

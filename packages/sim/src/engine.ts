@@ -53,6 +53,20 @@ export interface SimOptions {
    */
   issueSpreadDays?: number;
   /**
+   * What a person does with the cases the agent hands them.
+   *
+   * Without this the simulator has no human at all: escalate_to_human sets
+   * human_hold, automation stops, and nobody ever picks the case up — so
+   * handing a case over is indistinguishable from abandoning it. Any policy
+   * that escalates more then looks worse purely for being careful, which is a
+   * property of the model rather than of the policy.
+   *
+   * `resolveProb` is the share of escalated cases a person eventually
+   * recovers; `reviewDelayDays` is how long the queue takes. Both are the
+   * merchant's property, not the buyer's, so they apply to every persona.
+   */
+  humanQueue?: { resolveProb: number; reviewDelayDays: number };
+  /**
    * Parses free-text replies. When absent the ledger is handed the intent the
    * rules sampled, which gives the agent perfect comprehension for free and
    * measures a system nobody could build. When present, only the parse reaches
@@ -446,6 +460,35 @@ export async function runSim(opts: SimOptions): Promise<SimResult> {
         } else if (draw.intent === "stop") {
           st.optedOut = true;
           events.push({ day, date: today, kind: "dnc", invoiceId: inv.id, detail: {} });
+        }
+      }
+    }
+
+    // 2b. A person works the escalation queue.
+    if (opts.humanQueue) {
+      const { resolveProb, reviewDelayDays } = opts.humanQueue;
+      for (const inv of ledger.invoices()) {
+        if (inv.substate !== "human_hold") continue;
+        const esc = ledger.audit.forInvoice(inv.id).find((e) => e.action === "escalate_to_human");
+        if (!esc) continue;
+        const escalatedOn = istParts(esc.ts).date;
+        if (daysBetween(escalatedOn, today) !== reviewDelayDays) continue;
+
+        // One draw per escalated case, from the buyer's own stream so the
+        // outcome is reproducible and independent of policy.
+        const sb = streams.get(inv.buyerId)!;
+        if (sb.reply.bool(resolveProb)) {
+          const outstanding = inv.amount - inv.amountPaid;
+          ledger.recordPayment({
+            invoiceId: inv.id, ts: istAt(today, 16), amount: outstanding,
+            evidence: `evt_human_${inv.id}`,
+          });
+          paidOn.set(inv.id, today);
+          events.push({ day, date: today, kind: "payment", invoiceId: inv.id, detail: { amount: outstanding, viaHuman: true } });
+        } else {
+          ledger.setSubstate(inv.id, "closed",
+            `A person worked this case and could not recover it. Closing rather than leaving it open forever.`,
+            "human", [inv.id], { closedOn: today, closedReason: "human could not recover" });
         }
       }
     }

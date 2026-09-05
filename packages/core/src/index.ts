@@ -23,3 +23,4 @@ export * from "./voice/gather.js";
 export * from "./voice/audio.js";
 export * from "./voice/pacer.js";
 export * from "./agent/casehash.js";
+export * from "./locks.js";

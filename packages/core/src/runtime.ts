@@ -9,6 +9,7 @@ import { formatINR, type Paise } from "./money.js";
 import { fastPath } from "./policy.js";
 import { parseRzpEvent, type RazorpayClient, type RzpEvent } from "./razorpay/index.js";
 import { route } from "./router.js";
+import { invoiceLock, Locks, TICK_LOCK, type LockRedis } from "./locks.js";
 import type { LedgerStoreLike } from "./store.js";
 import { addDays, formatCivilShort, istParts, type Clock, type CivilDate } from "./time.js";
 import { templateDraft } from "./drafts.js";
@@ -36,6 +37,12 @@ export interface BaakiConfig {
   linkBase?: string;
   /** Needed to check which templates Meta has approved. */
   wabaId?: string;
+  /**
+   * Serialises work on the same invoice and drops redelivered events. Without
+   * it a webhook and a tick can both act on one invoice from different
+   * instances, which is how a nudge goes out seconds after payment.
+   */
+  redis?: LockRedis;
 }
 
 export interface CreateInvoiceInput {
@@ -97,7 +104,11 @@ export interface TickReport {
  * evidence arrives from a real Razorpay webhook.
  */
 export class Baaki {
-  constructor(private readonly cfg: BaakiConfig) {}
+  readonly #locks: Locks | null;
+
+  constructor(private readonly cfg: BaakiConfig) {
+    this.#locks = cfg.redis ? new Locks(cfg.redis) : null;
+  }
 
   get store(): LedgerStoreLike { return this.cfg.store; }
   get policy(): Policy { return this.cfg.policy; }
@@ -214,6 +225,20 @@ export class Baaki {
   // -- the loop --------------------------------------------------------------
 
   async tick(): Promise<TickReport> {
+    // One pass at a time. Two overlapping ticks would each read the ledger,
+    // decide independently, and both send.
+    if (this.#locks) {
+      const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(), 280_000);
+      if (out === null) {
+        const today = this.today();
+        return { ranAt: this.cfg.clock.now(), today, considered: 0, actions: [], fastCount: 0, slowCount: 0, sentCount: 0, blockedCount: 0 };
+      }
+      return out;
+    }
+    return this.#tick();
+  }
+
+  async #tick(): Promise<TickReport> {
     const now = this.cfg.clock.now();
     const today = this.today();
     const actions: TickAction[] = [];
@@ -251,8 +276,24 @@ export class Baaki {
       }
 
       try {
-        const sent = await this.apply(ledger, c.invoice.id, decision, now);
-        entry.applied = true;
+        // Hold the invoice while acting. A payment webhook landing between the
+        // decision and the send is exactly the case the guards cannot catch,
+        // because they already ran.
+        const act = async () => {
+          const fresh = this.cfg.store.load(this.cfg.policy);
+          const l = fresh instanceof Promise ? await fresh : fresh;
+          const recheck = l.caseFile(inv.id, now);
+          if (recheck.invoice.substate === "paid" || recheck.invoice.substate === "closed") {
+            entry.blocked = "settled while this pass was deciding";
+            return undefined;
+          }
+          const sent = await this.apply(ledger, c.invoice.id, decision, now);
+          entry.applied = true;
+          return sent;
+        };
+        const sent = this.#locks
+          ? await this.#locks.tryWith(invoiceLock(inv.id), act)
+          : await act();
         if (sent) entry.sent = sent;
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
@@ -433,7 +474,14 @@ export class Baaki {
     }
     const ev = parseRzpEvent(JSON.parse(rawBody));
 
-    await this.cfg.store.update((ledger) => {
+    // Razorpay retries until it gets a 2xx, so the same event arrives more than
+    // once as a matter of course. Recording a payment twice would double the
+    // amount paid.
+    if (this.#locks && !(await this.#locks.firstSeen("razorpay", ev.id))) {
+      return { ok: true, event: ev };
+    }
+
+    const applyEvent = () => this.cfg.store.update((ledger) => {
       const invoiceId = this.matchInvoice(ledger, ev);
       if (!invoiceId) return;
 
@@ -452,7 +500,21 @@ export class Baaki {
       }
     }, this.cfg.policy);
 
+    // Match the invoice outside the lock, then hold it while writing.
+    const target = await this.#matchForEvent(ev);
+    if (this.#locks && target) {
+      await this.#locks.with(invoiceLock(target), applyEvent, 15_000);
+    } else {
+      await applyEvent();
+    }
+
     return { ok: true, event: ev };
+  }
+
+  /** Which invoice an event belongs to, read without holding a lock. */
+  async #matchForEvent(ev: RzpEvent): Promise<string | null> {
+    const l = await this.cfg.store.load(this.cfg.policy);
+    return this.matchInvoice(l, ev);
   }
 
   private matchInvoice(ledger: Ledger, ev: RzpEvent): string | null {
@@ -487,6 +549,10 @@ export class Baaki {
     let handled = 0;
 
     for (const m of messages) {
+      // Meta redelivers on anything but a fast 2xx; the wamid makes each
+      // message exactly once.
+      if (this.#locks && !(await this.#locks.firstSeen("whatsapp", m.messageId))) continue;
+
       const target = await this.cfg.store.update((ledger) => {
         const buyer = ledger.buyersList().find((b) => b.phone.replace(/\D/g, "") === m.from.replace(/\D/g, ""));
         if (!buyer) return null;

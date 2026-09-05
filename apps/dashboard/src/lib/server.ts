@@ -63,6 +63,9 @@ export async function baaki(): Promise<Baaki> {
       }),
     } : {}),
     ...(process.env.WA_WABA_ID ? { wabaId: process.env.WA_WABA_ID } : {}),
+    // Serialises work on the same invoice across function instances and drops
+    // redelivered webhooks.
+    redis: redis() as never,
     agent: { maxToolCalls: 4, timeoutMs: 20_000, onGuardReject: "retry-once-then-human" },
   });
 }
