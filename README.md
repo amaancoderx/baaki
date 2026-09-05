@@ -1,10 +1,22 @@
 # Baaki AI
 
+<p>
+  <a href="https://baaki-ai.vercel.app"><img src="https://img.shields.io/badge/Live_App-baaki--ai.vercel.app-0e5e54?style=for-the-badge" alt="Live app"></a>
+  <a href="https://youtu.be/Pfg7jszBXTA"><img src="https://img.shields.io/badge/Demo_Video-YouTube-cc0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Demo video"></a>
+  <a href="https://amaankhan.xyz"><img src="https://img.shields.io/badge/Built_by-Amaan_Khan-1c1b16?style=for-the-badge" alt="Portfolio"></a>
+</p>
+
 **Baaki** (Hindi: "what remains to be paid") is an autonomous receivables agent for Indian businesses, built on top of Razorpay. You raise an invoice; Baaki delivers it, follows up on WhatsApp, email and SMS, places a real phone call in Hindi when messages stop working, understands what the buyer says back, and closes the case when the money lands. Every step it takes is written to an append-only audit trail with the reason it was taken and the evidence behind it.
 
 The agent decides. A deterministic guard layer decides whether the agent is allowed.
 
-Live: **https://baaki-ai.vercel.app**
+**[Watch the demo](https://youtu.be/Pfg7jszBXTA)**: one invoice's whole life on the demo clock, from being raised to the buyer actually paying, with every message, email and phone call really sent along the way.
+
+| | |
+| --- | --- |
+| Live app | https://baaki-ai.vercel.app |
+| Demo video (5 min) | https://youtu.be/Pfg7jszBXTA |
+| Built by | [Amaan Khan](https://amaankhan.xyz) |
 
 ## How it works
 
