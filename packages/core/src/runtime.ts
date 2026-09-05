@@ -1021,12 +1021,16 @@ export class Baaki {
 
       const paidEvents = ["invoice.paid", "payment_link.paid", "payment.captured", "virtual_account.credited", "invoice.partially_paid"];
       if (paidEvents.includes(ev.event) && ev.amount) {
-        ledger.recordPayment({ invoiceId, ts: ev.createdAt, amount: ev.amount, evidence: ev.id });
+        // Stamped with the ledger's clock, not the provider's. The event id
+        // stays as evidence, but on a moved calendar the provider's wall-clock
+        // timestamp put a payment made on Day 11 at Day 1 of the journey, as
+        // if the buyer had paid before being reminded of anything.
+        ledger.recordPayment({ invoiceId, ts: this.cfg.clock.now(), amount: ev.amount, evidence: ev.id });
       } else if (ev.event === "invoice.expired" || ev.event === "payment_link.expired") {
         const inv = ledger.invoice(invoiceId);
-        inv.linkExpiresOn = istParts(ev.createdAt).date;
+        inv.linkExpiresOn = istParts(this.cfg.clock.now()).date;
         ledger.audit.append({
-          ts: ev.createdAt, invoiceId, actor: "webhook", action: "none",
+          ts: this.cfg.clock.now(), invoiceId, actor: "webhook", action: "none",
           params: { event: ev.event },
           rationale: "The payment path expired. The next nudge must reissue before it can carry a live link.",
           guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [ev.id],
