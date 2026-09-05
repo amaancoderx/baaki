@@ -20,3 +20,4 @@ data/calls/
 .agent-cache*.json
 .lock
 evals/*.lock
+.env*.local

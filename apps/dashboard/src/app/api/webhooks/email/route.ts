@@ -28,9 +28,14 @@ export async function POST(req: Request) {
   let from = "", subject = "", text = "", messageId: string | undefined;
   const type = req.headers.get("content-type") ?? "";
   if (type.includes("application/json")) {
-    const b = (await req.json()) as Record<string, string>;
-    from = b.from ?? ""; subject = b.subject ?? ""; text = b.text ?? b.body ?? "";
-    messageId = b.messageId ?? b["message-id"];
+    const b = (await req.json()) as Record<string, unknown>;
+    // Resend's email.received event nests the message under data.
+    const data = (b.type === "email.received" && b.data && typeof b.data === "object"
+      ? b.data : b) as Record<string, string>;
+    from = String(data.from ?? "");
+    subject = String(data.subject ?? "");
+    text = String(data.text ?? data.body ?? "");
+    messageId = (data.email_id ?? data.message_id ?? data.messageId) as string | undefined;
   } else {
     const form = await req.formData();
     from = String(form.get("from") ?? "");
