@@ -11,12 +11,15 @@
  * hash so the second run of a given situation is free and the whole thing is
  * reproducible.
  */
+import { claim } from "./claim.js";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import {
   caseHash, fastPath, gemini, runCaseAgent, templateDraft,
   type CaseFile, type Decision,
 } from "@baaki/core";
 import { runSim, stamp, type SimMetrics } from "@baaki/sim";
+
+const release = claim("evals/agent-delta.md");
 
 const SEEDS = (process.env.SEEDS ?? "7919,15838,23757").split(",").map(Number);
 const INVOICES = Number(process.env.INVOICES ?? 400);
@@ -262,7 +265,7 @@ lines.push("The agent is more restrained than the rules in every run: it escalat
   "Zero guard violations at every resolution rate. Whatever the agent costs or",
   "saves, it never sent something it should not have.", "");
 
-mkdirSync("evals", { recursive: true });
+release();
 writeFileSync("evals/agent-delta.md", lines.join("\n"));
 const at50 = mean(pick("agent", 0.5, (x) => x.collected)) - mean(pick("rules", 0.5, (x) => x.collected));
 console.error(`wrote evals/agent-delta.md — ${live} live calls, ${hits} cache hits, delta at 50% resolution ${at50 >= 0 ? "+" : ""}${at50.toFixed(2)}pp, break-even ${breakEven === null ? "not reached" : (breakEven * 100) + "%"}`);

@@ -3,10 +3,13 @@
  * from this file, and this file comes from seeded runs that anyone can repeat
  * with `pnpm evals:report`.
  */
+import { claim } from "./claim.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fastPath, route, templateDraft, type CaseFile, type Decision } from "@baaki/core";
 import { runSim, stamp, SIM_VERSION, type PersonaOverrides, type SimMetrics, type SimResult } from "@baaki/sim";
 import { croreLakh, pm, range, summarise, type Summary } from "./stats.js";
+
+const release = claim("evals/report.md");
 
 const SEEDS = [7919, 15838, 23757, 31676, 39595, 47514, 55433, 63352, 71271, 79190];
 const INVOICES = 1200;
@@ -570,6 +573,6 @@ pnpm evals:report      # regenerates this file
 \`\`\`
 `;
 
-mkdirSync("evals", { recursive: true });
+release();
 writeFileSync("evals/report.md", md);
 console.error(`\nwrote evals/report.md — Baaki won ${seedTable.wins}/${SEEDS.length} seeds, ${grid.losing.length}/${grid.total} grid cells favour Baseline`);

@@ -18,3 +18,5 @@ data/contacts.json
 data/calls/
 .vercel
 .agent-cache*.json
+.lock
+evals/*.lock

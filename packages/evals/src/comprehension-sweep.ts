@@ -8,8 +8,11 @@
  *
  * No API key: the parser is modelled, not called.
  */
+import { claim } from "./claim.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { OBSERVED, PERFECT, runSim, stamp, type ComprehensionParams } from "@baaki/sim";
+
+const release = claim("evals/comprehension.md");
 
 const SEEDS = [7919, 15838, 23757, 31676, 39595, 47514, 55433, 63352, 71271, 79190];
 const INVOICES = 800;
@@ -84,8 +87,6 @@ lines.push("");
 
 const observed = cells.find((c) => c.label === "as observed in replies.md")!;
 const perfect = cells.find((c) => c.label === "perfect comprehension")!;
-const observed = cells.find((c) => c.label === "as observed in replies.md")!;
-const perfect = cells.find((c) => c.label === "perfect comprehension")!;
 const worst = cells.find((c) => c.label === "false promise 35%")!;
 
 lines.push("## Mishearing costs almost nothing here, and the reason matters", "");
@@ -128,6 +129,6 @@ lines.push(`A promise heard at low confidence should not freeze outreach for a w
   `hai?" That converts an expensive silent failure into a cheap question, and it`,
   `is the change this table exists to justify. It is not built yet.`, "");
 
-mkdirSync("evals", { recursive: true });
+release();
 writeFileSync("evals/comprehension.md", lines.join("\n"));
 console.error(`wrote evals/comprehension.md — observed profile costs ${(perfect.delta - observed.delta).toFixed(2)}pp`);
