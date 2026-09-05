@@ -142,6 +142,33 @@ fixtures. The test names are the stopping rules:
 promise was silently un-escalating a case a human already owned
 ([`docs/FAILURES.md`](docs/FAILURES.md) §3).
 
+## Live
+
+Nothing runs on a developer machine.
+
+| | |
+| --- | --- |
+| Dashboard, API, webhooks | `https://baaki-llcadaxongmailcoms-projects.vercel.app` |
+| Voice bridge | `https://baaki-voice.fly.dev` |
+| Ledger, policy, contacts | Upstash Redis |
+
+Verified end to end against a real Indian mobile:
+
+- **Razorpay** issues the invoice and the payment link; a signed
+  `payment_link.paid` closes the case with the event id as audit evidence.
+- **The agent** noticed the payment link had expired, reissued it before
+  speaking, and wrote the nudge itself.
+- **WhatsApp** delivered it. The reply — *"Me monday tak payment krta hu"* —
+  was read by Gemini as a promise for 2026-09-07 at 0.95 confidence, and
+  outreach froze. The next tick routed to the fast path with reason
+  `promise still in flight` and sent nothing.
+- **Voice**: a real call in Hindi. *"agle hafte Tuesday"* became a promise for
+  2026-09-15 — next week's Tuesday, not this week's — then she said goodbye and
+  hung up.
+
+Deployment, and why the voice bridge lives on a different host, is in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Running it
 
 ```bash
@@ -181,11 +208,12 @@ together with the region where it loses.
 
 ## What broke
 
-[`docs/FAILURES.md`](docs/FAILURES.md) — nine real entries, including a modelling
-bug that made the worst-paying persona the second-best, a headline effect that
-shrank from +2.8pp to +0.6pp when the sample grew, an entire agent layer that was
-wired but never called, and a Gemini 3 requirement that silently killed every
-multi-turn tool episode.
+[`docs/FAILURES.md`](docs/FAILURES.md) — fourteen real entries. A modelling bug
+that made the worst-paying persona the second-best. A headline effect that shrank
+from +2.8pp to +0.6pp when the sample grew. An entire agent layer that was wired
+but never called. Twilio silently dropping the query string from a stream URL,
+reported as a transport error. And Vercel Functions opening an outbound WebSocket
+that never delivers a frame, which is why the voice bridge runs somewhere else.
 
 ## What is not built
 

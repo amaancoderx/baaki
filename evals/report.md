@@ -104,7 +104,7 @@ Removing one component at a time, 10 seeds each, same split as §1:
 | --- | --- | --- | --- | --- | --- |
 | Full policy (p3) | 86.4% | +2.13pp | 2.31 | 0.0 | 0.0 |
 | No link reissue | 85.8% | +1.49pp | 2.32 | 0.0 | 0.0 |
-| No pre-due nudge | 86.6% | +2.27pp | 2.19 | 0.0 | 0.0 |
+| No pre-due nudge | 86.4% | +2.11pp | 2.13 | 0.0 | 0.0 |
 | No silent backoff or cap | 86.3% | +2.03pp | 2.38 | 0.0 | 0.0 |
 | Narrow rung gaps | 86.0% | +1.72pp | 2.62 | 16.7 | 13.5 |
 | maxTouches 3 | 85.3% | +0.98pp | 2.01 | 0.0 | 0.0 |

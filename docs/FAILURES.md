@@ -218,6 +218,92 @@ reason dropped from 18 to 1 and the fast/slow split settled at 94/6.
 
 ---
 
+## 10. Twilio strips the query string from a Stream URL
+
+**What was wrong.** `<Stream url="wss://host/media?invoice=inv_1">` looked
+correct and Twilio connected happily. The invoice never arrived.
+
+**How it showed.** As a transport error, which it was not. Twilio reported
+31951 — "Stream - Protocol connection error" — and the server logged nothing at
+all, which reads like a tunnel or TLS problem. Two tunnels were swapped out
+chasing it. ngrok's request log settled it: `GET /media -> 101`, query string
+gone. Twilio had connected fine; the socket simply arrived not knowing which
+case it was for, threw, and closed.
+
+**Fix.** The invoice travels as a `<Parameter>` and the session is built when
+the `start` event names it.
+
+---
+
+## 11. Native-audio models reject an explicit language
+
+**What was wrong.** `speechConfig.languageCode = "hi-IN"`, set to stop the model
+drifting into English mid-sentence.
+
+**How it showed.** The session opened, greeted the buyer, and died the moment
+real audio arrived: `1007 The audio content type (CONTENT_TYPE_AUDIO) is not
+supported for this model configuration`. The error names audio, and the cause
+was a language field.
+
+**Fix.** Removed it; language is steered from the system instruction. Also moved
+from `realtimeInput.mediaChunks` to `realtimeInput.audio`.
+
+---
+
+## 12. She stopped mid-sentence, then repeated herself, then never hung up
+
+Three separate faults that all sounded like one bad phone call.
+
+**Stopped mid-sentence.** Gemini emits a whole phrase in one chunk; Twilio wants
+a steady 20 ms mu-law frame and drops oversized payloads. A pacer now releases
+audio at real-time rate.
+
+**Repeated herself.** `START_SENSITIVITY_HIGH` treated phone-line noise as the
+buyer speaking, so the model kept abandoning and restarting its turn. Lowered,
+and the `interrupted` signal now clears queued audio so an abandoned turn is not
+played out over her.
+
+**Never hung up.** A recorded promise closed the socket on a fixed six-second
+timer, which either clipped her goodbye or left the buyer on a silent line.
+Hangup now waits for `turnComplete`.
+
+---
+
+## 13. Vercel Functions can open a WebSocket but never receive on it
+
+**What was wrong.** Nothing, in the code. The voice bridge was deployed to
+Vercel next to Twilio to cut roughly 500 ms of transcontinental latency.
+
+**How it showed.** Calls connected and stayed silent. A diagnostic route held an
+outbound socket to Gemini Live for 25 seconds from inside a function: it reached
+`open`, then received nothing — no `setupComplete`, no error, no close.
+Disabling permessage-deflate changed nothing.
+
+**Why it mattered.** The turn-based fallback works anywhere but puts Twilio's
+recogniser and text-to-speech either side of the model, and both are audibly
+worse — synthetic voice, mangled Hindi. Real-time is the product.
+
+**Fix.** The bridge runs on Fly in Ashburn. Serverless was the wrong shape for
+something that has to hold two sockets open at once.
+
+---
+
+## 14. A template in review failed the whole nudge
+
+**What was wrong.** Meta answers `#132001 Template name does not exist` for a
+template still queued for review, and the send threw.
+
+**How it showed.** The agent did everything right — spotted the expired payment
+link, reissued it, wrote correct Hinglish, passed every guard — and the buyer
+heard nothing, because a template was waiting in a queue.
+
+**Fix.** The channel asks which templates are actually approved and opens the
+conversation with one that is. Once the buyer replies, the 24-hour session
+window makes the real message sendable as free-form. A review queue should not
+be something the agent cannot work around.
+
+---
+
 ## Still open
 
 - **The pre-due nudge measures net-negative and is shipped anyway.** It spends a
@@ -225,6 +311,8 @@ reason dropped from 18 to 1 and the fast/slow split settled at 94/6.
   models a nudge as something that accelerates payment and cannot represent a
   pre-due reminder preventing lateness at all. That is a limitation of the model,
   but it does mean the rung is currently unsupported by measurement.
+- **Three WhatsApp templates are still in Meta review.** Cold outreach cannot
+  carry the payment link in a template button until they clear.
 - **The collection numbers are the rules layer, not the agent.** Scoring the
   case agent across 10 seeds is thousands of live calls. `evals/report.md` §0
   says so; `evals/agentic-run.md` covers the model in the loop at small scale.

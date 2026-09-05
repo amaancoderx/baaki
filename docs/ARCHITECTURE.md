@@ -137,6 +137,42 @@ assignment) and per-buyer `hazard` / `reply` / `text` streams. This keeps the
 comparison paired: a policy edit cannot reshuffle who is which persona or which
 arm they landed in. See `docs/FAILURES.md` §2.
 
+## Voice
+
+Two paths, and the difference is audible.
+
+**Real-time** (`deploy/fly/server.ts`) — Twilio Media Streams to Gemini Live.
+The model hears the caller and answers in its own voice, so no speech
+recognition or text-to-speech sits in between. mu-law 8k in, PCM 16k to the
+model, 24k back, paced to 20 ms frames because Twilio drops oversized payloads.
+Barge-in clears queued audio so an abandoned turn is not played over the buyer.
+
+**Turn-based** (`packages/core/src/voice/gather.ts`) — Twilio's recogniser and
+text-to-speech either side of Gemini. Runs anywhere, needs no WebSocket, sounds
+synthetic and mishears Hindi. It exists because real-time needs a host that runs
+a persistent process, and it is what answers if the bridge is unreachable.
+
+`VOICE_MODE` selects. Both use the same five in-call tools, the same ledger and
+the same audit trail: a promise made on a call is the same object as a promise
+made in a chat.
+
+The tools are deliberately narrow — `record_promise`, `record_dispute`,
+`send_payment_link_now`, `set_do_not_call`, `escalate_to_human`. A call is the
+least reviewable channel there is, so the agent records what was said or hands
+over. It does not argue a dispute, offer a discount, or claim a payment arrived.
+Consent is the first thing said on every call.
+
+## Storage
+
+The ledger is one Redis key. It is small, read and written as a unit, and
+keeping it whole is what keeps the append-only audit log consistent with the
+invoices it describes. `RedisLedgerStore.update` is read-modify-write and not
+transactional; that is acceptable for one merchant's book where deliveries are
+seconds apart, and a busier one wants per-invoice keys and a WATCH.
+
+`LedgerStoreLike` lets the same runtime serve a laptop and a serverless
+function: the file store is synchronous, Redis is not, and callers await either.
+
 ## Dashboard
 
 `apps/dashboard/data/snapshot.json` is emitted by
