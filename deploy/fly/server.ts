@@ -179,7 +179,14 @@ wss.on("connection", (ws: WebSocket) => {
     live.on("open", () => {
       live!.send(JSON.stringify({
         setup: {
-          model: `models/${process.env.GEMINI_LIVE_MODEL ?? "gemini-2.5-flash-native-audio-latest"}`,
+          // Pinned, and deliberately not an alias. On
+          // gemini-2.5-flash-native-audio-latest the session would accept audio
+          // and never emit a transcript or a turn: the greeting played, the
+          // buyer spoke, and nothing came back. Same code, same audio, one call
+          // working and the next silent, because the alias resolved to
+          // different backends. This model holds a multi-turn conversation,
+          // fires tools and closes cleanly.
+          model: `models/${process.env.GEMINI_LIVE_MODEL ?? "gemini-3.1-flash-live-preview"}`,
           generationConfig: {
             responseModalities: ["AUDIO"],
             // No languageCode: native-audio models reject it and close with 1007.
