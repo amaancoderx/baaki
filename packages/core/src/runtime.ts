@@ -409,7 +409,12 @@ export class Baaki {
 
   // -- the loop --------------------------------------------------------------
 
-  async tick(): Promise<TickReport> {
+  /**
+   * `only` focuses the pass on a single invoice. The demo drives one case's
+   * story, and a full-book pass meant an unrelated overdue invoice could ring
+   * the presenter's phone mid-take about a bill from another life.
+   */
+  async tick(only?: string): Promise<TickReport> {
     // One pass at a time. Two overlapping ticks would each read the ledger,
     // decide independently, and both send.
     if (this.#locks) {
@@ -417,7 +422,7 @@ export class Baaki {
       // the lock to expire on its own, and at 280s that reads as minutes of a
       // dead button. The platform kills the function at 120s, so holding the
       // lock longer than that only ever protects a corpse.
-      const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(), 120_000);
+      const out = await this.#locks.tryWith(TICK_LOCK, () => this.#tick(only), 120_000);
       if (out === null) {
         // Another pass owns the ledger. Reported rather than returned as an
         // empty result, because "nothing to do" and "not allowed to look" are
@@ -430,7 +435,7 @@ export class Baaki {
       }
       return out;
     }
-    return this.#tick();
+    return this.#tick(only);
   }
 
   async #tick(only?: string): Promise<TickReport> {
