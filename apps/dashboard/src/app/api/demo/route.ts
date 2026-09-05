@@ -150,6 +150,7 @@ export async function POST(req: Request) {
       rationale: a.rationale,
       sent: a.sent ?? null,
       blocked: a.blocked ?? null,
+      error: a.error ?? null,
       guardsFailed: a.guards.filter((g) => !g.pass).map((g) => g.name),
     }));
     passes.push({ date: report.today, jumped, actions });

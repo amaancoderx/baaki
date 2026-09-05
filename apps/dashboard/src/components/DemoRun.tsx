@@ -54,7 +54,7 @@ export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppSt
   const [created, setCreated] = useState<{
     invoice: { id: string; dueOn: string; amount: number };
     razorpay?: { shortUrl?: string };
-    delivered?: { email: boolean; whatsappMessageId: string | null; whatsappTemplate: string | null; skipped?: string };
+    delivered?: { emailRequested: boolean; emailSent: boolean; whatsappMessageId: string | null; whatsappTemplate: string | null; templatePending?: boolean; skipped?: string };
   } | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [clock, setClock] = useState<{ simulatedDate: string; daysAhead: number } | null>(null);
@@ -222,13 +222,21 @@ export function DemoRun({ contacts, state }: { contacts: Contact[]; state: AppSt
               </Link>
             </div>
             <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              <span className={`chip ${created.delivered?.email ? "chip-accent" : "chip-neutral"}`}>
-                {created.delivered?.email ? "✓ emailed by Razorpay" : "no email on file"}
+              <span className={`chip ${created.delivered?.emailSent ? "chip-accent" : "chip-neutral"}`}>
+                {created.delivered?.emailSent
+                  ? "✓ Razorpay emailed it"
+                  : created.delivered?.emailRequested ? "email requested, not confirmed" : "no email on file"}
               </span>
               <span className={`chip ${created.delivered?.whatsappMessageId ? "chip-accent" : "chip-neutral"}`}>
                 {created.delivered?.whatsappMessageId ? "✓ WhatsApp delivered" : created.delivered?.skipped ?? "WhatsApp not sent"}
               </span>
             </div>
+            {created.delivered?.templatePending && (
+              <p className="explain-inline" style={{ marginTop: 8 }}>
+                The invoice template is still in Meta review, so an approved opener went
+                instead. The real template sends the moment Meta approves it.
+              </p>
+            )}
             {created.delivered?.whatsappMessageId && (
               <p className="explain-inline" style={{ marginTop: 8 }}>
                 Message id <span className="evidence">{created.delivered.whatsappMessageId}</span>.

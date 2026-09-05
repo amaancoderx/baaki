@@ -75,11 +75,20 @@ export interface CreateInvoiceInput {
 }
 
 export interface Delivery {
-  /** Razorpay emailed the payment link at creation. False when no email is on file. */
-  email: boolean;
+  /**
+   * Razorpay was asked to email the link and accepted the request. Note the
+   * word asked: acceptance is not delivery, and in test mode Razorpay does not
+   * dispatch customer notification emails at all. Reporting this as "emailed"
+   * claimed something never observed.
+   */
+  emailRequested: boolean;
+  /** Razorpay confirmed it dispatched the email. This is the one worth trusting. */
+  emailSent: boolean;
   /** Meta message id, or null when WhatsApp is not configured or the send failed. */
   whatsappMessageId: string | null;
   whatsappTemplate: string | null;
+  /** True when the intended template is still in Meta review and an approved opener went instead. */
+  templatePending?: boolean;
   dryRun?: boolean;
   skipped?: string;
 }
@@ -92,6 +101,8 @@ export interface CreatedInvoice {
     invoiceId?: string;
     paymentLinkId?: string;
     shortUrl?: string;
+    /** What Razorpay reported, not what was requested. */
+    emailStatus?: "sent" | "pending" | null;
     virtualAccount?: { id: string; account?: string; ifsc?: string; vpa?: string };
   };
 }
@@ -161,6 +172,7 @@ export class Baaki {
     const expireBy = Math.floor(Date.parse(`${addDays(today, linkValidDays)}T18:00:00+05:30`) / 1000);
 
     let rzp: CreatedInvoice["razorpay"];
+    let emailSent = false;
 
     if (this.cfg.razorpay) {
       const customer = await this.cfg.razorpay.createCustomer({
@@ -170,25 +182,50 @@ export class Baaki {
         notes: { baaki_contact_id: input.contact.id, city: input.contact.city },
       });
 
-      const link = await this.cfg.razorpay.createPaymentLink({
+      // A Razorpay Invoice, not a payment link, is the primary path.
+      //
+      // It is the right primitive: it is literally an invoice, it carries the
+      // line item and the expiry, and it produces a payment page. It is also
+      // the one that reaches the buyer. Payment links accept `notify.email`
+      // and report success, but dispatch nothing in test mode, so the email
+      // leg looked wired and delivered nothing. An invoice comes back with
+      // `email_status: "sent"`, which is evidence rather than an assumption.
+      //
+      // Payment links remain the reissue path, where a fresh URL is all that
+      // is wanted.
+      const inv = await this.cfg.razorpay.createInvoice({
+        customerId: customer.id,
         amount: input.amount,
         description: input.description,
-        customer: {
-          name: input.contact.name,
-          contact: `+${input.contact.phone}`,
-          ...(input.contact.email ? { email: input.contact.email } : {}),
-        },
+        receipt: `baaki_${Date.now()}`,
         expireBy,
-        referenceId: `baaki_${Date.now()}`,
         notes: { baaki_contact_id: input.contact.id },
-        // One email, from Razorpay, carrying the branded link. This is the
-        // message that gets forwarded to the buyer's accounts team and quoted
-        // back in a dispute, which is why it is worth sending even though
-        // WhatsApp is the channel that actually gets read.
+        // One dispatch, from Razorpay, at issue. Everything after it is Baaki's
+        // and passes the guards.
         notify: { email: Boolean(input.contact.email), sms: false },
       });
 
-      rzp = { customerId: customer.id, paymentLinkId: link.id, shortUrl: link.short_url };
+      // The create response comes back with email_status "pending": the
+      // dispatch settles a moment later. Reading it once more is the difference
+      // between reporting what was queued and reporting what was sent.
+      let emailStatus = inv.email_status ?? null;
+      if (emailStatus === "pending") {
+        try {
+          const settled = await this.cfg.razorpay.getInvoice(inv.id);
+          emailStatus = settled.email_status ?? emailStatus;
+        } catch {
+          // Leave it as pending. Claiming more than we saw is the bug this
+          // whole path exists to avoid.
+        }
+      }
+
+      rzp = {
+        customerId: customer.id,
+        invoiceId: inv.id,
+        shortUrl: inv.short_url,
+        emailStatus,
+      };
+      emailSent = emailStatus === "sent";
 
       if (input.createVirtualAccount) {
         try {
@@ -256,7 +293,7 @@ export class Baaki {
       return invoice;
     }, this.cfg.policy);
 
-    const delivered = await this.#deliver(created, input.contact, rzp?.shortUrl);
+    const delivered = await this.#deliver(created, input.contact, rzp?.shortUrl, emailSent);
 
     return { invoice: created, razorpay: rzp, ...(delivered ? { delivered } : {}) };
   }
@@ -271,34 +308,46 @@ export class Baaki {
    * the invoice itself against that budget would mean a buyer who pays on time
    * still arrived one message closer to being left alone.
    */
-  async #deliver(invoice: Invoice, contact: Contact, shortUrl?: string): Promise<Delivery | undefined> {
-    const email = Boolean(contact.email) && Boolean(this.cfg.razorpay);
-    const base: Delivery = { email, whatsappMessageId: null, whatsappTemplate: null };
+  async #deliver(invoice: Invoice, contact: Contact, shortUrl?: string, emailSent = false): Promise<Delivery | undefined> {
+    const emailRequested = Boolean(contact.email) && Boolean(this.cfg.razorpay);
+    const base: Delivery = { emailRequested, emailSent, whatsappMessageId: null, whatsappTemplate: null };
 
     const ledger = await this.cfg.store.load(this.cfg.policy);
     if (ledger.memory(contact.id).doNotContact) {
-      const skipped: Delivery = { ...base, email: false, skipped: "buyer is on do_not_contact" };
+      const skipped: Delivery = { ...base, emailRequested: false, skipped: "buyer is on do_not_contact" };
       await this.#recordDelivery(invoice, skipped, shortUrl);
       return skipped;
     }
 
     let out = base;
     if (this.cfg.whatsapp) {
-      const template = RUNG_TEMPLATE.whatsapp!;
       try {
-        const res = await this.cfg.whatsapp.sendTemplate({
-          to: contact.phone,
-          template,
-          language: "en",
-          bodyParams: [
-            contact.name,
-            invoice.id,
-            formatINR(invoice.amount).replace("₹", "Rs "),
-            formatCivilShort(invoice.dueOn),
-          ],
-          ...(shortUrl ? { urlButtonSuffix: shortUrl.split("/").pop() ?? "" } : {}),
-        });
-        out = { ...base, whatsappMessageId: res.messageId, whatsappTemplate: template, ...(res.dryRun ? { dryRun: true } : {}) };
+        const usable = await this.usableTemplate(RUNG_TEMPLATE.whatsapp!);
+        if (!usable) {
+          out = { ...base, skipped: "no approved WhatsApp template is available yet" };
+        } else {
+          const res = usable.isFallback
+            ? await this.cfg.whatsapp.sendTemplate({ to: contact.phone, template: usable.template, language: "en_US", bodyParams: [] })
+            : await this.cfg.whatsapp.sendTemplate({
+                to: contact.phone,
+                template: usable.template,
+                language: "en",
+                bodyParams: [
+                  contact.name,
+                  invoice.id,
+                  formatINR(invoice.amount).replace("₹", "Rs "),
+                  formatCivilShort(invoice.dueOn),
+                ],
+                ...(shortUrl ? { urlButtonSuffix: shortUrl.split("/").pop() ?? "" } : {}),
+              });
+          out = {
+            ...base,
+            whatsappMessageId: res.messageId,
+            whatsappTemplate: usable.template,
+            ...(usable.isFallback ? { templatePending: true } : {}),
+            ...(res.dryRun ? { dryRun: true } : {}),
+          };
+        }
       } catch (e) {
         out = { ...base, skipped: e instanceof Error ? e.message : String(e) };
       }
@@ -310,7 +359,7 @@ export class Baaki {
 
   async #recordDelivery(invoice: Invoice, d: Delivery, shortUrl?: string): Promise<void> {
     const channels: Channel[] = [];
-    if (d.email) channels.push("email");
+    if (d.emailSent) channels.push("email");
     if (d.whatsappMessageId) channels.push("whatsapp");
 
     const where = channels.length === 0
@@ -326,7 +375,8 @@ export class Baaki {
         params: { channels, template: d.whatsappTemplate, ...(d.skipped ? { skipped: d.skipped } : {}) },
         rationale: d.skipped
           ? `Invoice not delivered: ${d.skipped}.`
-          : `Invoice delivered on ${where}. This is the bill, not a reminder, so it does not count against the ${this.cfg.policy.maxTouches}-message budget.`,
+          : `Invoice sent on ${where}. This is the bill, not a reminder, so it does not count against the ${this.cfg.policy.maxTouches}-message budget.`
+            + (d.templatePending ? " The invoice template is still in Meta review, so an approved opener went instead." : ""),
         guards: [],
         policyVersion: this.cfg.policy.policyVersion,
         evidence: [d.whatsappMessageId, shortUrl, invoice.id].filter(Boolean) as string[],
@@ -423,7 +473,24 @@ export class Baaki {
           : await act();
         if (sent) entry.sent = sent;
       } catch (e) {
-        entry.error = e instanceof Error ? e.message : String(e);
+        const why = e instanceof Error ? e.message : String(e);
+        entry.error = why;
+        // A failure that leaves no record is a failure the loop repeats. The
+        // case would come back tomorrow with the identical state, take the
+        // identical decision and fail the identical way, forever. Writing the
+        // attempt down with a review date turns a hot loop into a retry.
+        try {
+          ledger.audit.append({
+            ts: now, invoiceId: inv.id, actor: decision.actor, action: decision.action.kind,
+            params: { failed: why, nextReviewAt: addDays(today, 1) },
+            rationale: `${decision.rationale} This did not go through: ${why}. Trying again tomorrow rather than on the next pass.`,
+            guards: entry.guards, policyVersion: this.cfg.policy.policyVersion,
+            evidence: [inv.id],
+          });
+        } catch {
+          // The audit log is strict about rationale and evidence. If it will
+          // not take the entry there is nothing further to do here.
+        }
       }
       actions.push(entry);
     }
@@ -582,18 +649,35 @@ export class Baaki {
     const email = Boolean(opts.email && c.buyer.email);
 
     if (this.cfg.razorpay) {
-      const link = await this.cfg.razorpay.createPaymentLink({
-        amount: c.invoice.amount - c.invoice.amountPaid,
-        description: `Invoice ${c.invoice.id} (reissued)`,
-        customer: {
-          name: c.buyer.name,
-          contact: `+${c.buyer.phone}`,
-          ...(c.buyer.email ? { email: c.buyer.email } : {}),
-        },
-        expireBy: Math.floor(Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`) / 1000),
-        referenceId: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
-        notify: { email, sms: false },
-      });
+      let link: { id: string; short_url: string };
+      try {
+        link = await this.cfg.razorpay.createPaymentLink({
+          amount: c.invoice.amount - c.invoice.amountPaid,
+          description: `Invoice ${c.invoice.id} (reissued)`,
+          customer: {
+            name: c.buyer.name,
+            contact: `+${c.buyer.phone}`,
+            ...(c.buyer.email ? { email: c.buyer.email } : {}),
+          },
+          expireBy: Math.floor(Date.parse(`${addDays(today, validDays)}T18:00:00+05:30`) / 1000),
+          referenceId: `baaki_reissue_${c.invoice.id}_${Date.now()}`,
+          notify: { email, sms: false },
+        });
+      } catch (e) {
+        // A provider that will not mint a fresh link is not a reason for the
+        // buyer to hear nothing. Record why the path is stale and let the
+        // message go with the link there is. Throwing here meant one exhausted
+        // quota silently stopped every nudge on the book, and because the touch
+        // was never recorded the same action retried on every tick forever.
+        const why = e instanceof Error ? e.message : String(e);
+        ledger.audit.append({
+          ts: now, invoiceId, actor: "fast", action: "reissue_payment_path",
+          params: { failed: why },
+          rationale: `Could not issue a fresh payment path: ${why}. The message still goes out, carrying the existing link.`,
+          guards: [], policyVersion: this.cfg.policy.policyVersion, evidence: [invoiceId],
+        });
+        return false;
+      }
       const inv = ledger.invoice(invoiceId);
       inv.linkExpiresOn = addDays(today, validDays);
       ledger.noteExternal(invoiceId, { razorpayPaymentLinkId: link.id, shortUrl: link.short_url });
@@ -607,6 +691,30 @@ export class Baaki {
     }
     ledger.reissuePaymentPath(invoiceId, today, validDays, rationale, "agent");
     return false;
+  }
+
+  /**
+   * The template Meta will actually accept right now.
+   *
+   * A template still in review cannot be sent, and failing the send over it
+   * means the buyer hears nothing at all. Falling back to an approved opener
+   * gets a conversation started, and once the buyer replies the 24-hour window
+   * opens and the real message can go as free-form.
+   *
+   * Shared by every send path. It used to live only in the nudge path, so the
+   * delivery path went out with an unapproved template and failed outright.
+   */
+  private async usableTemplate(intended: string): Promise<{ template: string; isFallback: boolean } | null> {
+    if (!this.cfg.wabaId || !this.cfg.whatsapp) return { template: intended, isFallback: false };
+    try {
+      const approved = await this.cfg.whatsapp.approvedTemplates(this.cfg.wabaId);
+      if (approved.has(intended)) return { template: intended, isFallback: false };
+      const opener = ["hello_world"].find((t) => approved.has(t));
+      return opener ? { template: opener, isFallback: true } : null;
+    } catch {
+      // Could not check. Try the intended one and let the send report.
+      return { template: intended, isFallback: false };
+    }
   }
 
   /**
@@ -635,28 +743,13 @@ export class Baaki {
     const template = RUNG_TEMPLATE[a.rung];
     if (!template) return undefined;
 
-    // A template still in Meta's review queue cannot be sent, and failing the
-    // whole nudge over it means the buyer hears nothing at all. Fall back to an
-    // approved template to open the conversation; once the buyer replies the
-    // 24-hour window opens and the real message can go as free-form.
-    let chosen = template;
-    if (this.cfg.wabaId) {
-      try {
-        const approved = await this.cfg.whatsapp.approvedTemplates(this.cfg.wabaId);
-        if (!approved.has(template)) {
-          const opener = ["hello_world"].find((t) => approved.has(t));
-          if (!opener) return undefined;
-          chosen = opener;
-        }
-      } catch {
-        // Could not check; try the intended template and let the send report.
-      }
-    }
+    const usable = await this.usableTemplate(template);
+    if (!usable) return undefined;
 
-    if (chosen !== template) {
-      // hello_world takes no parameters.
-      const res = await this.cfg.whatsapp.sendTemplate({ to: phone, template: chosen, language: "en_US", bodyParams: [] });
-      return { messageId: res.messageId, template: chosen, dryRun: res.dryRun };
+    if (usable.isFallback) {
+      // hello_world takes no parameters and is en_US only.
+      const res = await this.cfg.whatsapp.sendTemplate({ to: phone, template: usable.template, language: "en_US", bodyParams: [] });
+      return { messageId: res.messageId, template: usable.template, dryRun: res.dryRun };
     }
 
     const bodyParams = a.rung === "owner_whatsapp"

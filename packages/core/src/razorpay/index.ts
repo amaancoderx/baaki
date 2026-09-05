@@ -34,6 +34,13 @@ export interface RzpInvoice {
   expire_by?: number;
   receipt?: string;
   date?: number;
+  /**
+   * What Razorpay says it actually did, as opposed to what was asked for.
+   * Unlike payment links, invoices really do dispatch in test mode, and this
+   * is the only honest evidence that a buyer was told anything.
+   */
+  email_status?: "sent" | "pending" | null;
+  sms_status?: "sent" | "pending" | null;
 }
 
 export interface RzpPaymentLink {
@@ -102,6 +109,12 @@ export function razorpay(cfg: RazorpayConfig) {
       receipt?: string;
       expireBy?: number;
       notes?: Record<string, string>;
+      /**
+       * Razorpay delivers the invoice itself when it is issued. This is one
+       * dispatch, not a reminder schedule: Baaki owns every message after it,
+       * so that nothing reaches a buyer without passing the guard layer.
+       */
+      notify?: { sms?: boolean; email?: boolean };
     }): Promise<RzpInvoice> {
       return call<RzpInvoice>("POST", "/invoices", {
         type: "invoice",
@@ -112,8 +125,8 @@ export function razorpay(cfg: RazorpayConfig) {
         ...(inv.receipt ? { receipt: inv.receipt } : {}),
         ...(inv.expireBy ? { expire_by: inv.expireBy } : {}),
         ...(inv.notes ? { notes: inv.notes } : {}),
-        sms_notify: 0,
-        email_notify: 0,
+        sms_notify: inv.notify?.sms ? 1 : 0,
+        email_notify: inv.notify?.email ? 1 : 0,
       });
     },
 
